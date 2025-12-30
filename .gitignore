@@ -12,6 +12,7 @@ dist/
 .env
 .env.*
 !.env.example
+.envrc
 
 # Misc
 .DS_Store
