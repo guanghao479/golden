@@ -5,7 +5,7 @@ help:
 	@echo "  setup    Install backend/frontend dependencies"
 	@echo "  backend  Run Go API server (uses backend/.env if present)"
 	@echo "  frontend Run Vite dev server"
-	@echo "  dev      Run backend and frontend concurrently (runs setup first)"
+	@echo "  dev      Run backend and frontend with prefixed logs"
 	@echo "  lint     Run Go fmt and frontend lint"
 
 setup:
@@ -19,7 +19,7 @@ frontend:
 	cd frontend && npm run dev
 
 dev: setup
-	@$(MAKE) -j2 backend frontend
+	./scripts/dev.sh
 
 lint:
 	gofmt -w backend/cmd/server/main.go backend/internal/api/*.go backend/internal/config/*.go backend/internal/crawler/*.go backend/internal/models/*.go backend/internal/store/*.go

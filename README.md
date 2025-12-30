@@ -45,6 +45,7 @@ Run both services together:
 ```bash
 make dev
 ```
+Output is prefixed with `[backend]` and `[frontend]` to make both processes easy to follow.
 
 ## Environment Variables
 See `.env.example` for expected values.
