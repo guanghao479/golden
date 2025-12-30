@@ -2,13 +2,14 @@
 
 help:
 	@echo "Targets:"
-	@echo "  setup    Install frontend dependencies"
+	@echo "  setup    Install backend/frontend dependencies"
 	@echo "  backend  Run Go API server (uses backend/.env if present)"
 	@echo "  frontend Run Vite dev server"
-	@echo "  dev      Run backend and frontend concurrently"
+	@echo "  dev      Run backend and frontend concurrently (runs setup first)"
 	@echo "  lint     Run Go fmt and frontend lint"
 
 setup:
+	cd backend && go mod download
 	cd frontend && npm install
 
 backend:
@@ -17,7 +18,7 @@ backend:
 frontend:
 	cd frontend && npm run dev
 
-dev:
+dev: setup
 	@$(MAKE) -j2 backend frontend
 
 lint:
