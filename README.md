@@ -66,5 +66,19 @@ make dev
 ```
 Output is prefixed with `[frontend]` to make the process easy to follow.
 
+## Testing
+Run the frontend and Supabase function tests locally:
+```bash
+make test
+```
+
+Run them individually:
+```bash
+make test-frontend
+make test-backend
+```
+`make test-backend` uses `--unsafely-ignore-certificate-errors=deno.land` to
+work around local TLS setups that block the Deno standard library download.
+
 ## Environment Variables
 See `.env.example` for expected values.
