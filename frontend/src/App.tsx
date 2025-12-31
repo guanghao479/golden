@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
@@ -87,33 +88,21 @@ type AppData = {
   places: Place[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
-  eventDrafts: Record<string, EventDraft>;
-  placeDrafts: Record<string, PlaceDraft>;
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
   isSubmitting: boolean;
   session: Session | null;
-  authEmail: string;
-  authPassword: string;
   authError: string | null;
   authLoading: boolean;
   setCrawlUrl: (value: string) => void;
   setCrawlType: (value: "events" | "places") => void;
   handleCrawlSubmit: () => void;
-  handleEventDraftChange: (id: string, key: keyof EventDraft, value: string) => void;
-  handlePlaceDraftChange: (
-    id: string,
-    key: keyof PlaceDraft,
-    value: string | boolean
-  ) => void;
-  saveEvent: (id: string) => void;
-  savePlace: (id: string) => void;
+  saveEvent: (id: string, draft: EventDraft) => void;
+  savePlace: (id: string, draft: PlaceDraft) => void;
   approveEvent: (id: string) => void;
   approvePlace: (id: string) => void;
-  setAuthEmail: (value: string) => void;
-  setAuthPassword: (value: string) => void;
-  handleSignIn: () => void;
+  handleSignIn: (email: string, password: string) => void;
   handleSignOut: () => void;
 };
 
@@ -296,8 +285,6 @@ function ExplorePage({ events, places }: ExplorePageProps) {
 type AdminPageProps = {
   pendingEvents: Event[];
   pendingPlaces: Place[];
-  eventDrafts: Record<string, EventDraft>;
-  placeDrafts: Record<string, PlaceDraft>;
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
@@ -305,23 +292,299 @@ type AdminPageProps = {
   onCrawlUrlChange: (value: string) => void;
   onCrawlTypeChange: (value: "events" | "places") => void;
   onCrawlSubmit: () => void;
-  onEventDraftChange: (id: string, key: keyof EventDraft, value: string) => void;
-  onPlaceDraftChange: (
-    id: string,
-    key: keyof PlaceDraft,
-    value: string | boolean
-  ) => void;
-  onSaveEvent: (id: string) => void;
-  onSavePlace: (id: string) => void;
+  onSaveEvent: (id: string, draft: EventDraft) => void;
+  onSavePlace: (id: string, draft: PlaceDraft) => void;
   onApproveEvent: (id: string) => void;
   onApprovePlace: (id: string) => void;
 };
 
+type EventReviewCardProps = {
+  event: Event;
+  onSave: (id: string, draft: EventDraft) => void;
+  onApprove: (id: string) => void;
+};
+
+function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
+  const form = useForm<EventDraft>({
+    defaultValues: {
+      title: event.title ?? "",
+      description: event.description ?? "",
+      start_time: event.start_time ?? "",
+      end_time: event.end_time ?? "",
+      location_name: event.location_name ?? "",
+      address: event.address ?? "",
+      website: event.website ?? "",
+      tags: event.tags?.join(", ") ?? "",
+    },
+    onSubmit: async ({ value }) => {
+      await onSave(event.id, value);
+    },
+  });
+
+  useEffect(() => {
+    form.reset({
+      values: {
+        title: event.title ?? "",
+        description: event.description ?? "",
+        start_time: event.start_time ?? "",
+        end_time: event.end_time ?? "",
+        location_name: event.location_name ?? "",
+        address: event.address ?? "",
+        website: event.website ?? "",
+        tags: event.tags?.join(", ") ?? "",
+      },
+    });
+  }, [event, form]);
+
+  return (
+    <div className="rounded-2xl border border-muted p-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void form.handleSubmit();
+        }}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <form.Field
+              name="title"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Event title"
+                />
+              )}
+            />
+            <form.Field
+              name="description"
+              children={(field) => (
+                <Textarea
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Description"
+                />
+              )}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <form.Field
+                name="start_time"
+                children={(field) => (
+                  <Input
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Start time"
+                  />
+                )}
+              />
+              <form.Field
+                name="end_time"
+                children={(field) => (
+                  <Input
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="End time"
+                  />
+                )}
+              />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <form.Field
+              name="location_name"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Location"
+                />
+              )}
+            />
+            <form.Field
+              name="address"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Address"
+                />
+              )}
+            />
+            <form.Field
+              name="website"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Website"
+                />
+              )}
+            />
+            <form.Field
+              name="tags"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Tags (comma separated)"
+                />
+              )}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button variant="outline" type="submit">
+            Save edits
+          </Button>
+          <Button type="button" onClick={() => onApprove(event.id)}>
+            Approve event
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+type PlaceReviewCardProps = {
+  place: Place;
+  onSave: (id: string, draft: PlaceDraft) => void;
+  onApprove: (id: string) => void;
+};
+
+function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
+  const form = useForm<PlaceDraft>({
+    defaultValues: {
+      name: place.name ?? "",
+      description: place.description ?? "",
+      category: place.category ?? "",
+      address: place.address ?? "",
+      website: place.website ?? "",
+      family_friendly: place.family_friendly ?? false,
+      tags: place.tags?.join(", ") ?? "",
+    },
+    onSubmit: async ({ value }) => {
+      await onSave(place.id, value);
+    },
+  });
+
+  useEffect(() => {
+    form.reset({
+      values: {
+        name: place.name ?? "",
+        description: place.description ?? "",
+        category: place.category ?? "",
+        address: place.address ?? "",
+        website: place.website ?? "",
+        family_friendly: place.family_friendly ?? false,
+        tags: place.tags?.join(", ") ?? "",
+      },
+    });
+  }, [place, form]);
+
+  return (
+    <div className="rounded-2xl border border-muted p-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void form.handleSubmit();
+        }}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <form.Field
+              name="name"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Place name"
+                />
+              )}
+            />
+            <form.Field
+              name="description"
+              children={(field) => (
+                <Textarea
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Description"
+                />
+              )}
+            />
+            <form.Field
+              name="category"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Category"
+                />
+              )}
+            />
+          </div>
+          <div className="space-y-3">
+            <form.Field
+              name="address"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Address"
+                />
+              )}
+            />
+            <form.Field
+              name="website"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Website"
+                />
+              )}
+            />
+            <form.Field
+              name="family_friendly"
+              children={(field) => (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.checked)}
+                    className="h-4 w-4 rounded border-muted"
+                  />
+                  Family-friendly
+                </div>
+              )}
+            />
+            <form.Field
+              name="tags"
+              children={(field) => (
+                <Input
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Tags (comma separated)"
+                />
+              )}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button variant="outline" type="submit">
+            Save edits
+          </Button>
+          <Button type="button" onClick={() => onApprove(place.id)}>
+            Approve place
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function AdminPage({
   pendingEvents,
   pendingPlaces,
-  eventDrafts,
-  placeDrafts,
   crawlUrl,
   crawlType,
   statusMessage,
@@ -329,8 +592,6 @@ function AdminPage({
   onCrawlUrlChange,
   onCrawlTypeChange,
   onCrawlSubmit,
-  onEventDraftChange,
-  onPlaceDraftChange,
   onSaveEvent,
   onSavePlace,
   onApproveEvent,
@@ -394,113 +655,14 @@ function AdminPage({
             {pendingEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">No pending events.</p>
             ) : (
-              pendingEvents.map((event) => {
-                const draft = eventDrafts[event.id];
-                if (!draft) return null;
-                return (
-                  <div
-                    key={event.id}
-                    className="rounded-2xl border border-muted p-4"
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-3">
-                        <Input
-                          value={draft.title}
-                          onChange={(e) =>
-                            onEventDraftChange(event.id, "title", e.target.value)
-                          }
-                          placeholder="Event title"
-                        />
-                        <Textarea
-                          value={draft.description}
-                          onChange={(e) =>
-                            onEventDraftChange(
-                              event.id,
-                              "description",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Description"
-                        />
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Input
-                            value={draft.start_time}
-                            onChange={(e) =>
-                              onEventDraftChange(
-                                event.id,
-                                "start_time",
-                                e.target.value
-                              )
-                            }
-                            placeholder="Start time"
-                          />
-                          <Input
-                            value={draft.end_time}
-                            onChange={(e) =>
-                              onEventDraftChange(
-                                event.id,
-                                "end_time",
-                                e.target.value
-                              )
-                            }
-                            placeholder="End time"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <Input
-                          value={draft.location_name}
-                          onChange={(e) =>
-                            onEventDraftChange(
-                              event.id,
-                              "location_name",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Location"
-                        />
-                        <Input
-                          value={draft.address}
-                          onChange={(e) =>
-                            onEventDraftChange(
-                              event.id,
-                              "address",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Address"
-                        />
-                        <Input
-                          value={draft.website}
-                          onChange={(e) =>
-                            onEventDraftChange(
-                              event.id,
-                              "website",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Website"
-                        />
-                        <Input
-                          value={draft.tags}
-                          onChange={(e) =>
-                            onEventDraftChange(event.id, "tags", e.target.value)
-                          }
-                          placeholder="Tags (comma separated)"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <Button variant="outline" onClick={() => onSaveEvent(event.id)}>
-                        Save edits
-                      </Button>
-                      <Button onClick={() => onApproveEvent(event.id)}>
-                        Approve event
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
+              pendingEvents.map((event) => (
+                <EventReviewCard
+                  key={event.id}
+                  event={event}
+                  onSave={onSaveEvent}
+                  onApprove={onApproveEvent}
+                />
+              ))
             )}
           </CardContent>
         </Card>
@@ -514,92 +676,14 @@ function AdminPage({
             {pendingPlaces.length === 0 ? (
               <p className="text-sm text-muted-foreground">No pending places.</p>
             ) : (
-              pendingPlaces.map((place) => {
-                const draft = placeDrafts[place.id];
-                if (!draft) return null;
-                return (
-                  <div
-                    key={place.id}
-                    className="rounded-2xl border border-muted p-4"
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-3">
-                        <Input
-                          value={draft.name}
-                          onChange={(e) =>
-                            onPlaceDraftChange(place.id, "name", e.target.value)
-                          }
-                          placeholder="Place name"
-                        />
-                        <Textarea
-                          value={draft.description}
-                          onChange={(e) =>
-                            onPlaceDraftChange(
-                              place.id,
-                              "description",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Description"
-                        />
-                        <Input
-                          value={draft.category}
-                          onChange={(e) =>
-                            onPlaceDraftChange(place.id, "category", e.target.value)
-                          }
-                          placeholder="Category"
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <Input
-                          value={draft.address}
-                          onChange={(e) =>
-                            onPlaceDraftChange(place.id, "address", e.target.value)
-                          }
-                          placeholder="Address"
-                        />
-                        <Input
-                          value={draft.website}
-                          onChange={(e) =>
-                            onPlaceDraftChange(place.id, "website", e.target.value)
-                          }
-                          placeholder="Website"
-                        />
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={draft.family_friendly}
-                            onChange={(e) =>
-                              onPlaceDraftChange(
-                                place.id,
-                                "family_friendly",
-                                e.target.checked
-                              )
-                            }
-                            className="h-4 w-4 rounded border-muted"
-                          />
-                          Family-friendly
-                        </div>
-                        <Input
-                          value={draft.tags}
-                          onChange={(e) =>
-                            onPlaceDraftChange(place.id, "tags", e.target.value)
-                          }
-                          placeholder="Tags (comma separated)"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <Button variant="outline" onClick={() => onSavePlace(place.id)}>
-                        Save edits
-                      </Button>
-                      <Button onClick={() => onApprovePlace(place.id)}>
-                        Approve place
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
+              pendingPlaces.map((place) => (
+                <PlaceReviewCard
+                  key={place.id}
+                  place={place}
+                  onSave={onSavePlace}
+                  onApprove={onApprovePlace}
+                />
+              ))
             )}
           </CardContent>
         </Card>
@@ -610,27 +694,29 @@ function AdminPage({
 
 type AdminAuthPanelProps = {
   session: Session | null;
-  authEmail: string;
-  authPassword: string;
   authError: string | null;
   authLoading: boolean;
-  onAuthEmailChange: (value: string) => void;
-  onAuthPasswordChange: (value: string) => void;
-  onSignIn: () => void;
+  onSignIn: (email: string, password: string) => void;
   onSignOut: () => void;
 };
 
 function AdminAuthPanel({
   session,
-  authEmail,
-  authPassword,
   authError,
   authLoading,
-  onAuthEmailChange,
-  onAuthPasswordChange,
   onSignIn,
   onSignOut,
 }: AdminAuthPanelProps) {
+  const form = useForm({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+    onSubmit: async ({ value }) => {
+      await onSignIn(value.email, value.password);
+    },
+  });
+
   return (
     <main className="px-6 pb-16">
       <section className="mx-auto max-w-2xl">
@@ -652,28 +738,48 @@ function AdminAuthPanel({
                 </Button>
               </div>
             ) : (
-              <>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void form.handleSubmit();
+                }}
+              >
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    type="email"
-                    value={authEmail}
-                    onChange={(event) => onAuthEmailChange(event.target.value)}
-                    placeholder="admin@example.com"
+                  <form.Field
+                    name="email"
+                    children={(field) => (
+                      <Input
+                        type="email"
+                        value={field.state.value}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        placeholder="admin@example.com"
+                      />
+                    )}
                   />
-                  <Input
-                    type="password"
-                    value={authPassword}
-                    onChange={(event) => onAuthPasswordChange(event.target.value)}
-                    placeholder="Password"
+                  <form.Field
+                    name="password"
+                    children={(field) => (
+                      <Input
+                        type="password"
+                        value={field.state.value}
+                        onChange={(event) =>
+                          field.handleChange(event.target.value)
+                        }
+                        placeholder="Password"
+                      />
+                    )}
                   />
                 </div>
                 {authError && (
                   <p className="text-sm text-destructive">{authError}</p>
                 )}
-                <Button onClick={onSignIn} disabled={authLoading}>
+                <Button type="submit" disabled={authLoading}>
                   {authLoading ? "Signing in..." : "Sign in"}
                 </Button>
-              </>
+              </form>
             )}
           </CardContent>
         </Card>
@@ -696,28 +802,20 @@ function AdminRoute() {
   const {
     pendingEvents,
     pendingPlaces,
-    eventDrafts,
-    placeDrafts,
     crawlUrl,
     crawlType,
     statusMessage,
     isSubmitting,
     session,
-    authEmail,
-    authPassword,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
-    handleEventDraftChange,
-    handlePlaceDraftChange,
     saveEvent,
     savePlace,
     approveEvent,
     approvePlace,
-    setAuthEmail,
-    setAuthPassword,
     handleSignIn,
     handleSignOut,
   } = useAppData();
@@ -726,8 +824,6 @@ function AdminRoute() {
     <AdminPage
       pendingEvents={pendingEvents}
       pendingPlaces={pendingPlaces}
-      eventDrafts={eventDrafts}
-      placeDrafts={placeDrafts}
       crawlUrl={crawlUrl}
       crawlType={crawlType}
       statusMessage={statusMessage}
@@ -735,8 +831,6 @@ function AdminRoute() {
       onCrawlUrlChange={setCrawlUrl}
       onCrawlTypeChange={setCrawlType}
       onCrawlSubmit={handleCrawlSubmit}
-      onEventDraftChange={handleEventDraftChange}
-      onPlaceDraftChange={handlePlaceDraftChange}
       onSaveEvent={saveEvent}
       onSavePlace={savePlace}
       onApproveEvent={approveEvent}
@@ -745,12 +839,8 @@ function AdminRoute() {
   ) : (
     <AdminAuthPanel
       session={session}
-      authEmail={authEmail}
-      authPassword={authPassword}
       authError={authError}
       authLoading={authLoading}
-      onAuthEmailChange={setAuthEmail}
-      onAuthPasswordChange={setAuthPassword}
       onSignIn={handleSignIn}
       onSignOut={handleSignOut}
     />
@@ -758,15 +848,11 @@ function AdminRoute() {
 }
 
 function RootLayout() {
-  const [eventDrafts, setEventDrafts] = useState<Record<string, EventDraft>>({});
-  const [placeDrafts, setPlaceDrafts] = useState<Record<string, PlaceDraft>>({});
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawlType, setCrawlType] = useState<"events" | "places">("events");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -852,39 +938,6 @@ function RootLayout() {
     };
   }, []);
 
-  useEffect(() => {
-    const drafts: Record<string, EventDraft> = {};
-    pendingEvents.forEach((event) => {
-      drafts[event.id] = {
-        title: event.title ?? "",
-        description: event.description ?? "",
-        start_time: event.start_time ?? "",
-        end_time: event.end_time ?? "",
-        location_name: event.location_name ?? "",
-        address: event.address ?? "",
-        website: event.website ?? "",
-        tags: event.tags?.join(", ") ?? "",
-      };
-    });
-    setEventDrafts(drafts);
-  }, [pendingEvents]);
-
-  useEffect(() => {
-    const drafts: Record<string, PlaceDraft> = {};
-    pendingPlaces.forEach((place) => {
-      drafts[place.id] = {
-        name: place.name ?? "",
-        description: place.description ?? "",
-        category: place.category ?? "",
-        address: place.address ?? "",
-        website: place.website ?? "",
-        family_friendly: place.family_friendly ?? false,
-        tags: place.tags?.join(", ") ?? "",
-      };
-    });
-    setPlaceDrafts(drafts);
-  }, [pendingPlaces]);
-
   const handleCrawlSubmit = async () => {
     if (!crawlUrl) {
       setStatusMessage("Please enter a URL to crawl.");
@@ -912,31 +965,7 @@ function RootLayout() {
     setIsSubmitting(false);
   };
 
-  const handleEventDraftChange = (
-    id: string,
-    key: keyof EventDraft,
-    value: string
-  ) => {
-    setEventDrafts((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [key]: value },
-    }));
-  };
-
-  const handlePlaceDraftChange = (
-    id: string,
-    key: keyof PlaceDraft,
-    value: string | boolean
-  ) => {
-    setPlaceDrafts((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [key]: value },
-    }));
-  };
-
-  const saveEvent = async (id: string) => {
-    const draft = eventDrafts[id];
-    if (!draft) return;
+  const saveEvent = async (id: string, draft: EventDraft) => {
     await supabase
       .from("events")
       .update({
@@ -956,9 +985,7 @@ function RootLayout() {
     await queryClient.invalidateQueries({ queryKey: ["events", "pending"] });
   };
 
-  const savePlace = async (id: string) => {
-    const draft = placeDrafts[id];
-    if (!draft) return;
+  const savePlace = async (id: string, draft: PlaceDraft) => {
     await supabase
       .from("places")
       .update({
@@ -993,12 +1020,12 @@ function RootLayout() {
     ]);
   };
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (email: string, password: string) => {
     setAuthError(null);
     setAuthLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password: authPassword,
+      email,
+      password,
     });
     if (error) {
       setAuthError(error.message);
@@ -1015,28 +1042,20 @@ function RootLayout() {
     places,
     pendingEvents,
     pendingPlaces,
-    eventDrafts,
-    placeDrafts,
     crawlUrl,
     crawlType,
     statusMessage,
     isSubmitting,
     session,
-    authEmail,
-    authPassword,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
-    handleEventDraftChange,
-    handlePlaceDraftChange,
     saveEvent,
     savePlace,
     approveEvent,
     approvePlace,
-    setAuthEmail,
-    setAuthPassword,
     handleSignIn,
     handleSignOut,
   };
