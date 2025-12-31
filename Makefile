@@ -1,4 +1,4 @@
-.PHONY: help setup frontend dev lint
+.PHONY: help setup frontend dev lint test test-frontend test-backend
 
 help:
 	@echo "Targets:"
@@ -6,6 +6,9 @@ help:
 	@echo "  frontend Run Vite dev server"
 	@echo "  dev      Run frontend with prefixed logs"
 	@echo "  lint     Run frontend lint"
+	@echo "  test     Run frontend + backend tests"
+	@echo "  test-frontend Run frontend tests"
+	@echo "  test-backend  Run Supabase function tests"
 
 setup:
 	cd frontend && npm install
@@ -18,3 +21,11 @@ dev: setup
 
 lint:
 	cd frontend && npm run lint
+
+test: test-frontend test-backend
+
+test-frontend:
+	cd frontend && npm run test
+
+test-backend:
+	deno test supabase/functions/api/handler.test.ts
