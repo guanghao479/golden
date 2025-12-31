@@ -1,4 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Link,
+  Outlet,
+  createRootRoute,
+  createRoute,
+  useRouterState,
+} from "@tanstack/react-router";
 import {
   CalendarDays,
   CheckCircle2,
@@ -6,7 +19,6 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
@@ -67,6 +79,51 @@ type PlaceDraft = {
   website: string;
   family_friendly: boolean;
   tags: string;
+};
+
+type AppData = {
+  events: Event[];
+  places: Place[];
+  pendingEvents: Event[];
+  pendingPlaces: Place[];
+  eventDrafts: Record<string, EventDraft>;
+  placeDrafts: Record<string, PlaceDraft>;
+  crawlUrl: string;
+  crawlType: "events" | "places";
+  statusMessage: string | null;
+  isSubmitting: boolean;
+  session: Session | null;
+  authEmail: string;
+  authPassword: string;
+  authError: string | null;
+  authLoading: boolean;
+  setCrawlUrl: (value: string) => void;
+  setCrawlType: (value: "events" | "places") => void;
+  handleCrawlSubmit: () => void;
+  handleEventDraftChange: (id: string, key: keyof EventDraft, value: string) => void;
+  handlePlaceDraftChange: (
+    id: string,
+    key: keyof PlaceDraft,
+    value: string | boolean
+  ) => void;
+  saveEvent: (id: string) => void;
+  savePlace: (id: string) => void;
+  approveEvent: (id: string) => void;
+  approvePlace: (id: string) => void;
+  setAuthEmail: (value: string) => void;
+  setAuthPassword: (value: string) => void;
+  handleSignIn: () => void;
+  handleSignOut: () => void;
+};
+
+const AppDataContext = createContext<AppData | null>(null);
+
+const useAppData = () => {
+  const context = useContext(AppDataContext);
+  if (!context) {
+    throw new Error("useAppData must be used within AppDataContext");
+  }
+  return context;
 };
 
 const highlights = [
@@ -624,7 +681,82 @@ function AdminAuthPanel({
   );
 }
 
-export default function App() {
+function ExploreEventsRoute() {
+  const { events, places } = useAppData();
+  return <ExplorePage events={events} places={places} />;
+}
+
+function ExplorePlacesRoute() {
+  const { events, places } = useAppData();
+  return <ExplorePage events={events} places={places} />;
+}
+
+function AdminRoute() {
+  const {
+    pendingEvents,
+    pendingPlaces,
+    eventDrafts,
+    placeDrafts,
+    crawlUrl,
+    crawlType,
+    statusMessage,
+    isSubmitting,
+    session,
+    authEmail,
+    authPassword,
+    authError,
+    authLoading,
+    setCrawlUrl,
+    setCrawlType,
+    handleCrawlSubmit,
+    handleEventDraftChange,
+    handlePlaceDraftChange,
+    saveEvent,
+    savePlace,
+    approveEvent,
+    approvePlace,
+    setAuthEmail,
+    setAuthPassword,
+    handleSignIn,
+    handleSignOut,
+  } = useAppData();
+
+  return session ? (
+    <AdminPage
+      pendingEvents={pendingEvents}
+      pendingPlaces={pendingPlaces}
+      eventDrafts={eventDrafts}
+      placeDrafts={placeDrafts}
+      crawlUrl={crawlUrl}
+      crawlType={crawlType}
+      statusMessage={statusMessage}
+      isSubmitting={isSubmitting}
+      onCrawlUrlChange={setCrawlUrl}
+      onCrawlTypeChange={setCrawlType}
+      onCrawlSubmit={handleCrawlSubmit}
+      onEventDraftChange={handleEventDraftChange}
+      onPlaceDraftChange={handlePlaceDraftChange}
+      onSaveEvent={saveEvent}
+      onSavePlace={savePlace}
+      onApproveEvent={approveEvent}
+      onApprovePlace={approvePlace}
+    />
+  ) : (
+    <AdminAuthPanel
+      session={session}
+      authEmail={authEmail}
+      authPassword={authPassword}
+      authError={authError}
+      authLoading={authLoading}
+      onAuthEmailChange={setAuthEmail}
+      onAuthPasswordChange={setAuthPassword}
+      onSignIn={handleSignIn}
+      onSignOut={handleSignOut}
+    />
+  );
+}
+
+function RootLayout() {
   const [events, setEvents] = useState<Event[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
@@ -646,7 +778,7 @@ export default function App() {
     []
   );
 
-  const location = useLocation();
+  const location = useRouterState({ select: (state) => state.location });
   const isAdminRoute = location.pathname.startsWith("/admin");
 
   useEffect(() => {
@@ -881,107 +1013,127 @@ export default function App() {
     await supabase.auth.signOut();
   };
 
+  const appData: AppData = {
+    events,
+    places,
+    pendingEvents,
+    pendingPlaces,
+    eventDrafts,
+    placeDrafts,
+    crawlUrl,
+    crawlType,
+    statusMessage,
+    isSubmitting,
+    session,
+    authEmail,
+    authPassword,
+    authError,
+    authLoading,
+    setCrawlUrl,
+    setCrawlType,
+    handleCrawlSubmit,
+    handleEventDraftChange,
+    handlePlaceDraftChange,
+    saveEvent,
+    savePlace,
+    approveEvent,
+    approvePlace,
+    setAuthEmail,
+    setAuthPassword,
+    handleSignIn,
+    handleSignOut,
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="px-6 py-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-primary">Golden</p>
-            <h1 className="text-xl font-semibold text-foreground">
-              Family Events & Places
-            </h1>
-          </div>
-          <nav className="flex flex-wrap gap-4">
-            <NavLink to="/" className={navLinkStyles}>
-              Home
-            </NavLink>
-            <NavLink to="/explore/events" className={navLinkStyles}>
-              Events
-            </NavLink>
-            <NavLink to="/explore/places" className={navLinkStyles}>
-              Places
-            </NavLink>
-            <NavLink to="/admin" className={navLinkStyles}>
-              Admin
-            </NavLink>
-          </nav>
-        </div>
-      </header>
-
-      {isAdminRoute && (
-        <section className="px-6 pb-8">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-muted bg-white px-6 py-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-primary">
-                  Admin workspace
-                </p>
-                <p className="text-lg font-medium text-foreground">{heroCopy}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {session
-                    ? `Signed in as ${session.user.email}`
-                    : "Sign in to manage crawled listings."}
-                </p>
-              </div>
-              {session && (
-                <Button variant="outline" onClick={handleSignOut}>
-                  Sign out
-                </Button>
-              )}
+    <AppDataContext.Provider value={appData}>
+      <div className="min-h-screen bg-background">
+        <header className="px-6 py-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-primary">Golden</p>
+              <h1 className="text-xl font-semibold text-foreground">
+                Family Events & Places
+              </h1>
             </div>
+            <nav className="flex flex-wrap gap-4">
+              <Link to="/" className={navLinkStyles}>
+                Home
+              </Link>
+              <Link to="/explore/events" className={navLinkStyles}>
+                Events
+              </Link>
+              <Link to="/explore/places" className={navLinkStyles}>
+                Places
+              </Link>
+              <Link to="/admin" className={navLinkStyles}>
+                Admin
+              </Link>
+            </nav>
           </div>
-        </section>
-      )}
+        </header>
 
-      <Routes>
-        <Route path="/" element={<MarketingPage />} />
-        <Route
-          path="/explore/events"
-          element={<ExplorePage events={events} places={places} />}
-        />
-        <Route
-          path="/explore/places"
-          element={<ExplorePage events={events} places={places} />}
-        />
-        <Route
-          path="/admin"
-          element={
-            session ? (
-              <AdminPage
-                pendingEvents={pendingEvents}
-                pendingPlaces={pendingPlaces}
-                eventDrafts={eventDrafts}
-                placeDrafts={placeDrafts}
-                crawlUrl={crawlUrl}
-                crawlType={crawlType}
-                statusMessage={statusMessage}
-                isSubmitting={isSubmitting}
-                onCrawlUrlChange={setCrawlUrl}
-                onCrawlTypeChange={setCrawlType}
-                onCrawlSubmit={handleCrawlSubmit}
-                onEventDraftChange={handleEventDraftChange}
-                onPlaceDraftChange={handlePlaceDraftChange}
-                onSaveEvent={saveEvent}
-                onSavePlace={savePlace}
-                onApproveEvent={approveEvent}
-                onApprovePlace={approvePlace}
-              />
-            ) : (
-              <AdminAuthPanel
-                session={session}
-                authEmail={authEmail}
-                authPassword={authPassword}
-                authError={authError}
-                authLoading={authLoading}
-                onAuthEmailChange={setAuthEmail}
-                onAuthPasswordChange={setAuthPassword}
-                onSignIn={handleSignIn}
-                onSignOut={handleSignOut}
-              />
-            )
-          }
-        />
-      </Routes>
-    </div>
+        {isAdminRoute && (
+          <section className="px-6 pb-8">
+            <div className="mx-auto max-w-6xl rounded-2xl border border-muted bg-white px-6 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-primary">
+                    Admin workspace
+                  </p>
+                  <p className="text-lg font-medium text-foreground">{heroCopy}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {session
+                      ? `Signed in as ${session.user.email}`
+                      : "Sign in to manage crawled listings."}
+                  </p>
+                </div>
+                {session && (
+                  <Button variant="outline" onClick={handleSignOut}>
+                    Sign out
+                  </Button>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <Outlet />
+      </div>
+    </AppDataContext.Provider>
   );
 }
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: MarketingPage,
+});
+
+const exploreEventsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/explore/events",
+  component: ExploreEventsRoute,
+});
+
+const explorePlacesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/explore/places",
+  component: ExplorePlacesRoute,
+});
+
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: AdminRoute,
+});
+
+export const routeTree = rootRoute.addChildren([
+  indexRoute,
+  exploreEventsRoute,
+  explorePlacesRoute,
+  adminRoute,
+]);
