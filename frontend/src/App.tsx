@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import type { Session } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,29 +19,30 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
-const apiBase = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
+import { supabase } from "@/lib/supabase";
 
 type Event = {
   id: string;
-  title: string;
-  description: string;
-  start_time: string;
-  end_time: string;
-  location_name: string;
-  address: string;
-  website: string;
+  source_url: string | null;
+  title: string | null;
+  description: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  location_name: string | null;
+  address: string | null;
+  website: string | null;
   tags: string[];
   approved: boolean;
 };
 
 type Place = {
   id: string;
-  name: string;
-  description: string;
-  category: string;
-  address: string;
-  website: string;
+  source_url: string | null;
+  name: string | null;
+  description: string | null;
+  category: string | null;
+  address: string | null;
+  website: string | null;
   family_friendly: boolean;
   tags: string[];
   approved: boolean;
@@ -188,9 +190,12 @@ function ExplorePage({ events, places }: ExplorePageProps) {
             ) : (
               events.map((event) => (
                 <div key={event.id} className="rounded-xl bg-muted px-4 py-3">
-                  <p className="font-medium text-foreground">{event.title}</p>
+                  <p className="font-medium text-foreground">
+                    {event.title || "Untitled event"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    {event.start_time || "Time TBD"} · {event.location_name}
+                    {event.start_time || "Time TBD"} ·{" "}
+                    {event.location_name || "Location TBD"}
                   </p>
                 </div>
               ))
@@ -214,7 +219,9 @@ function ExplorePage({ events, places }: ExplorePageProps) {
                   key={place.id}
                   className="rounded-xl border border-muted px-4 py-3"
                 >
-                  <p className="font-medium text-foreground">{place.name}</p>
+                  <p className="font-medium text-foreground">
+                    {place.name || "Untitled place"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {place.category || "Family-friendly spot"}
                   </p>
@@ -543,6 +550,80 @@ function AdminPage({
   );
 }
 
+type AdminAuthPanelProps = {
+  session: Session | null;
+  authEmail: string;
+  authPassword: string;
+  authError: string | null;
+  authLoading: boolean;
+  onAuthEmailChange: (value: string) => void;
+  onAuthPasswordChange: (value: string) => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
+};
+
+function AdminAuthPanel({
+  session,
+  authEmail,
+  authPassword,
+  authError,
+  authLoading,
+  onAuthEmailChange,
+  onAuthPasswordChange,
+  onSignIn,
+  onSignOut,
+}: AdminAuthPanelProps) {
+  return (
+    <main className="px-6 pb-16">
+      <section className="mx-auto max-w-2xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin access</CardTitle>
+            <CardDescription>
+              Sign in with Supabase Auth to review crawled listings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {session ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Signed in as {session.user.email}
+                </p>
+                <Button variant="outline" onClick={onSignOut}>
+                  Sign out
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    type="email"
+                    value={authEmail}
+                    onChange={(event) => onAuthEmailChange(event.target.value)}
+                    placeholder="admin@example.com"
+                  />
+                  <Input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => onAuthPasswordChange(event.target.value)}
+                    placeholder="Password"
+                  />
+                </div>
+                {authError && (
+                  <p className="text-sm text-destructive">{authError}</p>
+                )}
+                <Button onClick={onSignIn} disabled={authLoading}>
+                  {authLoading ? "Signing in..." : "Sign in"}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -554,6 +635,11 @@ export default function App() {
   const [crawlType, setCrawlType] = useState<"events" | "places">("events");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const heroCopy = useMemo(
     () => "Review crawled listings, edit details, and approve when ready.",
@@ -565,53 +651,81 @@ export default function App() {
 
   useEffect(() => {
     const fetchPublic = async () => {
-      const [eventsResponse, placesResponse] = await Promise.all([
-        fetch(`${apiBase}/api/events`),
-        fetch(`${apiBase}/api/places`),
+      const [{ data: eventsData }, { data: placesData }] = await Promise.all([
+        supabase
+          .from("events")
+          .select("*")
+          .eq("approved", true)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("places")
+          .select("*")
+          .eq("approved", true)
+          .order("created_at", { ascending: false }),
       ]);
-      if (eventsResponse.ok) {
-        setEvents(await eventsResponse.json());
-      }
-      if (placesResponse.ok) {
-        setPlaces(await placesResponse.json());
-      }
+      setEvents(eventsData ?? []);
+      setPlaces(placesData ?? []);
     };
 
     fetchPublic();
   }, []);
 
   const fetchAdmin = async () => {
-    const [eventsResponse, placesResponse] = await Promise.all([
-      fetch(`${apiBase}/api/admin/events`),
-      fetch(`${apiBase}/api/admin/places`),
+    if (!session) return;
+    const [{ data: eventsData }, { data: placesData }] = await Promise.all([
+      supabase
+        .from("events")
+        .select("*")
+        .eq("approved", false)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("places")
+        .select("*")
+        .eq("approved", false)
+        .order("created_at", { ascending: false }),
     ]);
-    if (eventsResponse.ok) {
-      const data = await eventsResponse.json();
-      setPendingEvents(data);
-    }
-    if (placesResponse.ok) {
-      const data = await placesResponse.json();
-      setPendingPlaces(data);
-    }
+    setPendingEvents(eventsData ?? []);
+    setPendingPlaces(placesData ?? []);
   };
 
   useEffect(() => {
-    if (isAdminRoute) {
+    if (isAdminRoute && session) {
       fetchAdmin();
+    } else if (isAdminRoute && !session) {
+      setPendingEvents([]);
+      setPendingPlaces([]);
     }
-  }, [isAdminRoute]);
+  }, [isAdminRoute, session]);
+
+  useEffect(() => {
+    const setInitialSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+    };
+    setInitialSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        setSession(nextSession);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const drafts: Record<string, EventDraft> = {};
     pendingEvents.forEach((event) => {
       drafts[event.id] = {
-        title: event.title,
-        description: event.description,
+        title: event.title ?? "",
+        description: event.description ?? "",
         start_time: event.start_time ?? "",
         end_time: event.end_time ?? "",
-        location_name: event.location_name,
-        address: event.address,
-        website: event.website,
+        location_name: event.location_name ?? "",
+        address: event.address ?? "",
+        website: event.website ?? "",
         tags: event.tags?.join(", ") ?? "",
       };
     });
@@ -622,12 +736,12 @@ export default function App() {
     const drafts: Record<string, PlaceDraft> = {};
     pendingPlaces.forEach((place) => {
       drafts[place.id] = {
-        name: place.name,
-        description: place.description,
-        category: place.category,
-        address: place.address,
-        website: place.website,
-        family_friendly: place.family_friendly,
+        name: place.name ?? "",
+        description: place.description ?? "",
+        category: place.category ?? "",
+        address: place.address ?? "",
+        website: place.website ?? "",
+        family_friendly: place.family_friendly ?? false,
         tags: place.tags?.join(", ") ?? "",
       };
     });
@@ -635,16 +749,20 @@ export default function App() {
   }, [pendingPlaces]);
 
   const refreshPublic = async () => {
-    const [eventsResponse, placesResponse] = await Promise.all([
-      fetch(`${apiBase}/api/events`),
-      fetch(`${apiBase}/api/places`),
+    const [{ data: eventsData }, { data: placesData }] = await Promise.all([
+      supabase
+        .from("events")
+        .select("*")
+        .eq("approved", true)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("places")
+        .select("*")
+        .eq("approved", true)
+        .order("created_at", { ascending: false }),
     ]);
-    if (eventsResponse.ok) {
-      setEvents(await eventsResponse.json());
-    }
-    if (placesResponse.ok) {
-      setPlaces(await placesResponse.json());
-    }
+    setEvents(eventsData ?? []);
+    setPlaces(placesData ?? []);
   };
 
   const handleCrawlSubmit = async () => {
@@ -655,19 +773,18 @@ export default function App() {
 
     setIsSubmitting(true);
     setStatusMessage(null);
-    const response = await fetch(`${apiBase}/api/crawl`, {
+    const { error } = await supabase.functions.invoke("api", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: crawlUrl, type: crawlType }),
+      path: "/crawl",
+      body: { url: crawlUrl, type: crawlType },
     });
 
-    if (response.ok) {
+    if (error) {
+      setStatusMessage(error.message ?? "Crawl failed. Check the API logs.");
+    } else {
       setStatusMessage("Crawl started. New items were added to review.");
       setCrawlUrl("");
       await fetchAdmin();
-    } else {
-      const payload = await response.json();
-      setStatusMessage(payload.error ?? "Crawl failed. Check the API logs.");
     }
     setIsSubmitting(false);
   };
@@ -697,11 +814,9 @@ export default function App() {
   const saveEvent = async (id: string) => {
     const draft = eventDrafts[id];
     if (!draft) return;
-    await fetch(`${apiBase}/api/events`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
+    await supabase
+      .from("events")
+      .update({
         title: draft.title,
         description: draft.description,
         start_time: draft.start_time,
@@ -713,19 +828,17 @@ export default function App() {
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-      }),
-    });
+      })
+      .eq("id", id);
     await fetchAdmin();
   };
 
   const savePlace = async (id: string) => {
     const draft = placeDrafts[id];
     if (!draft) return;
-    await fetch(`${apiBase}/api/places`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id,
+    await supabase
+      .from("places")
+      .update({
         name: draft.name,
         description: draft.description,
         category: draft.category,
@@ -736,27 +849,36 @@ export default function App() {
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-      }),
-    });
+      })
+      .eq("id", id);
     await fetchAdmin();
   };
 
   const approveEvent = async (id: string) => {
-    await fetch(`${apiBase}/api/events/approve`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    await supabase.from("events").update({ approved: true }).eq("id", id);
     await Promise.all([fetchAdmin(), refreshPublic()]);
   };
 
   const approvePlace = async (id: string) => {
-    await fetch(`${apiBase}/api/places/approve`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    await supabase.from("places").update({ approved: true }).eq("id", id);
     await Promise.all([fetchAdmin(), refreshPublic()]);
+  };
+
+  const handleSignIn = async () => {
+    setAuthError(null);
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authEmail,
+      password: authPassword,
+    });
+    if (error) {
+      setAuthError(error.message);
+    }
+    setAuthLoading(false);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
   };
 
   return (
@@ -789,8 +911,24 @@ export default function App() {
       {isAdminRoute && (
         <section className="px-6 pb-8">
           <div className="mx-auto max-w-6xl rounded-2xl border border-muted bg-white px-6 py-5">
-            <p className="text-sm font-semibold text-primary">Admin workspace</p>
-            <p className="text-lg font-medium text-foreground">{heroCopy}</p>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-primary">
+                  Admin workspace
+                </p>
+                <p className="text-lg font-medium text-foreground">{heroCopy}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {session
+                    ? `Signed in as ${session.user.email}`
+                    : "Sign in to manage crawled listings."}
+                </p>
+              </div>
+              {session && (
+                <Button variant="outline" onClick={handleSignOut}>
+                  Sign out
+                </Button>
+              )}
+            </div>
           </div>
         </section>
       )}
@@ -808,25 +946,39 @@ export default function App() {
         <Route
           path="/admin"
           element={
-            <AdminPage
-              pendingEvents={pendingEvents}
-              pendingPlaces={pendingPlaces}
-              eventDrafts={eventDrafts}
-              placeDrafts={placeDrafts}
-              crawlUrl={crawlUrl}
-              crawlType={crawlType}
-              statusMessage={statusMessage}
-              isSubmitting={isSubmitting}
-              onCrawlUrlChange={setCrawlUrl}
-              onCrawlTypeChange={setCrawlType}
-              onCrawlSubmit={handleCrawlSubmit}
-              onEventDraftChange={handleEventDraftChange}
-              onPlaceDraftChange={handlePlaceDraftChange}
-              onSaveEvent={saveEvent}
-              onSavePlace={savePlace}
-              onApproveEvent={approveEvent}
-              onApprovePlace={approvePlace}
-            />
+            session ? (
+              <AdminPage
+                pendingEvents={pendingEvents}
+                pendingPlaces={pendingPlaces}
+                eventDrafts={eventDrafts}
+                placeDrafts={placeDrafts}
+                crawlUrl={crawlUrl}
+                crawlType={crawlType}
+                statusMessage={statusMessage}
+                isSubmitting={isSubmitting}
+                onCrawlUrlChange={setCrawlUrl}
+                onCrawlTypeChange={setCrawlType}
+                onCrawlSubmit={handleCrawlSubmit}
+                onEventDraftChange={handleEventDraftChange}
+                onPlaceDraftChange={handlePlaceDraftChange}
+                onSaveEvent={saveEvent}
+                onSavePlace={savePlace}
+                onApproveEvent={approveEvent}
+                onApprovePlace={approvePlace}
+              />
+            ) : (
+              <AdminAuthPanel
+                session={session}
+                authEmail={authEmail}
+                authPassword={authPassword}
+                authError={authError}
+                authLoading={authLoading}
+                onAuthEmailChange={setAuthEmail}
+                onAuthPasswordChange={setAuthPassword}
+                onSignIn={handleSignIn}
+                onSignOut={handleSignOut}
+              />
+            )
           }
         />
       </Routes>

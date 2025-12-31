@@ -4,22 +4,20 @@ Family-friendly events and activity places aggregation platform.
 
 ## Stack
 - **Frontend:** React + TypeScript + Tailwind + shadcn/ui
-- **Backend:** Go HTTP API
+- **API:** Supabase Edge Function (`supabase/functions/api/index.ts`)
 - **Data:** Supabase (Postgres + REST)
 - **Crawling:** Firecrawl structured extraction
 
 ## Project Structure
 ```
-backend/   Go API service
 frontend/  React web app
+supabase/  Supabase migrations + Edge Functions
 ```
 
-## Backend
-1. Copy `.env.example` to `backend/.env` and populate credentials.
-2. Run:
-   ```bash
-   make backend
-   ```
+## API (Supabase Edge Function)
+The only API runtime lives in `supabase/functions/api/index.ts`. Use the Supabase
+CLI to run the Edge Function locally and deploy it. The frontend calls Supabase
+directly for CRUD and uses the Edge Function for crawling.
 
 ### API Endpoints
 - `POST /api/crawl` `{ "url": "https://...", "type": "events" | "places" }`
@@ -38,14 +36,35 @@ make setup
 make frontend
 ```
 
-Set `VITE_API_BASE` if the API runs on a different host/port than `http://localhost:8080`.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to your Supabase project
+values. The admin route requires a Supabase Auth user.
+
+## Supabase Setup (Local)
+1. Install the Supabase CLI.
+2. Start Supabase locally:
+   ```bash
+   supabase start
+   ```
+3. Apply migrations:
+   ```bash
+   supabase db reset
+   ```
+4. Run the Edge Function (with required env values):
+   ```bash
+   supabase functions serve api --env-file ./supabase/.env.local
+   ```
+
+Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `FIRECRAWL_API_KEY` to the
+Supabase Functions environment (or `supabase/.env.local` for local usage).
+Use `supabase/.env.local.example` as a template.
+5. Create an admin user in Supabase Auth (email/password) for `/admin` access.
 
 ## Local Dev Convenience
-Run both services together:
+Run the frontend with prefixed logs:
 ```bash
 make dev
 ```
-Output is prefixed with `[backend]` and `[frontend]` to make both processes easy to follow.
+Output is prefixed with `[frontend]` to make the process easy to follow.
 
 ## Environment Variables
 See `.env.example` for expected values.
