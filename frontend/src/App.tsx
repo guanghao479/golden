@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
   Outlet,
@@ -757,10 +758,6 @@ function AdminRoute() {
 }
 
 function RootLayout() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
-  const [pendingPlaces, setPendingPlaces] = useState<Place[]>([]);
   const [eventDrafts, setEventDrafts] = useState<Record<string, EventDraft>>({});
   const [placeDrafts, setPlaceDrafts] = useState<Record<string, PlaceDraft>>({});
   const [crawlUrl, setCrawlUrl] = useState("");
@@ -780,54 +777,62 @@ function RootLayout() {
 
   const location = useRouterState({ select: (state) => state.location });
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const fetchPublic = async () => {
-      const [{ data: eventsData }, { data: placesData }] = await Promise.all([
-        supabase
-          .from("events")
-          .select("*")
-          .eq("approved", true)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("places")
-          .select("*")
-          .eq("approved", true)
-          .order("created_at", { ascending: false }),
-      ]);
-      setEvents(eventsData ?? []);
-      setPlaces(placesData ?? []);
-    };
+  const eventsQuery = useQuery({
+    queryKey: ["events", "public", location.pathname],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("events")
+        .select("*")
+        .eq("approved", true)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
 
-    fetchPublic();
-  }, []);
+  const placesQuery = useQuery({
+    queryKey: ["places", "public", location.pathname],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("places")
+        .select("*")
+        .eq("approved", true)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
 
-  const fetchAdmin = async () => {
-    if (!session) return;
-    const [{ data: eventsData }, { data: placesData }] = await Promise.all([
-      supabase
+  const pendingEventsQuery = useQuery({
+    queryKey: ["events", "pending", session?.user.id, isAdminRoute],
+    enabled: isAdminRoute && Boolean(session),
+    queryFn: async () => {
+      const { data } = await supabase
         .from("events")
         .select("*")
         .eq("approved", false)
-        .order("created_at", { ascending: false }),
-      supabase
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const pendingPlacesQuery = useQuery({
+    queryKey: ["places", "pending", session?.user.id, isAdminRoute],
+    enabled: isAdminRoute && Boolean(session),
+    queryFn: async () => {
+      const { data } = await supabase
         .from("places")
         .select("*")
         .eq("approved", false)
-        .order("created_at", { ascending: false }),
-    ]);
-    setPendingEvents(eventsData ?? []);
-    setPendingPlaces(placesData ?? []);
-  };
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
 
-  useEffect(() => {
-    if (isAdminRoute && session) {
-      fetchAdmin();
-    } else if (isAdminRoute && !session) {
-      setPendingEvents([]);
-      setPendingPlaces([]);
-    }
-  }, [isAdminRoute, session]);
+  const events = eventsQuery.data ?? [];
+  const places = placesQuery.data ?? [];
+  const pendingEvents = pendingEventsQuery.data ?? [];
+  const pendingPlaces = pendingPlacesQuery.data ?? [];
 
   useEffect(() => {
     const setInitialSession = async () => {
@@ -880,23 +885,6 @@ function RootLayout() {
     setPlaceDrafts(drafts);
   }, [pendingPlaces]);
 
-  const refreshPublic = async () => {
-    const [{ data: eventsData }, { data: placesData }] = await Promise.all([
-      supabase
-        .from("events")
-        .select("*")
-        .eq("approved", true)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("places")
-        .select("*")
-        .eq("approved", true)
-        .order("created_at", { ascending: false }),
-    ]);
-    setEvents(eventsData ?? []);
-    setPlaces(placesData ?? []);
-  };
-
   const handleCrawlSubmit = async () => {
     if (!crawlUrl) {
       setStatusMessage("Please enter a URL to crawl.");
@@ -916,7 +904,10 @@ function RootLayout() {
     } else {
       setStatusMessage("Crawl started. New items were added to review.");
       setCrawlUrl("");
-      await fetchAdmin();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+      ]);
     }
     setIsSubmitting(false);
   };
@@ -962,7 +953,7 @@ function RootLayout() {
           .filter(Boolean),
       })
       .eq("id", id);
-    await fetchAdmin();
+    await queryClient.invalidateQueries({ queryKey: ["events", "pending"] });
   };
 
   const savePlace = async (id: string) => {
@@ -983,17 +974,23 @@ function RootLayout() {
           .filter(Boolean),
       })
       .eq("id", id);
-    await fetchAdmin();
+    await queryClient.invalidateQueries({ queryKey: ["places", "pending"] });
   };
 
   const approveEvent = async (id: string) => {
     await supabase.from("events").update({ approved: true }).eq("id", id);
-    await Promise.all([fetchAdmin(), refreshPublic()]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["events", "public"] }),
+    ]);
   };
 
   const approvePlace = async (id: string) => {
     await supabase.from("places").update({ approved: true }).eq("id", id);
-    await Promise.all([fetchAdmin(), refreshPublic()]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["places", "public"] }),
+    ]);
   };
 
   const handleSignIn = async () => {
