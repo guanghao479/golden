@@ -24,8 +24,8 @@ lint:
 
 test: test-frontend test-backend
 
-test-frontend:
+test-frontend: setup
 	cd frontend && npm run test
 
 test-backend:
-	deno test supabase/functions/api/handler.test.ts
+	deno test --unsafely-ignore-certificate-errors=deno.land supabase/functions/api/handler.test.ts

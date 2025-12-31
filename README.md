@@ -78,5 +78,8 @@ make test-frontend
 make test-backend
 ```
 
+`make test-backend` uses `--unsafely-ignore-certificate-errors=deno.land` to
+work around local TLS setups that block the Deno standard library download.
+
 ## Environment Variables
 See `.env.example` for expected values.
