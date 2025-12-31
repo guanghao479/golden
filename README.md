@@ -66,5 +66,17 @@ make dev
 ```
 Output is prefixed with `[frontend]` to make the process easy to follow.
 
+## Testing
+Run the frontend and Supabase function tests locally:
+```bash
+make test
+```
+
+Run them individually:
+```bash
+make test-frontend
+make test-backend
+```
+
 ## Environment Variables
 See `.env.example` for expected values.
