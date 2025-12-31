@@ -48,22 +48,18 @@ Copy `supabase/.env.local.example` to `supabase/.env.local` and fill in the
 server-only values. The backend script will use the env file automatically.
 
 ## Supabase Setup (Local)
-1. Install the Supabase CLI locally:
-   ```bash
-   npm install supabase --save-dev
-   npx supabase init
-   ```
+1. Install the Supabase CLI.
 2. Start Supabase locally:
    ```bash
-   npx supabase start
+   supabase start
    ```
 3. Apply migrations:
    ```bash
-   npx supabase db reset
+   supabase db reset
    ```
 4. Run the Edge Function (with required env values):
    ```bash
-   npx supabase functions serve api --env-file ./supabase/.env.local
+   supabase functions serve api --env-file ./supabase/.env.local
    ```
 
 Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `FIRECRAWL_API_KEY` to the
