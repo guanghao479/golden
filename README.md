@@ -33,25 +33,37 @@ directly for CRUD and uses the Edge Function for crawling.
 ## Frontend
 ```bash
 make setup
-make frontend
+make dev-frontend
 ```
 
 Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to your Supabase project
 values. The admin route requires a Supabase Auth user.
 
+## Backend (Local)
+```bash
+make dev-backend
+```
+
+Copy `supabase/.env.local.example` to `supabase/.env.local` and fill in the
+server-only values. The backend script will use the env file automatically.
+
 ## Supabase Setup (Local)
-1. Install the Supabase CLI.
+1. Install the Supabase CLI locally:
+   ```bash
+   npm install supabase --save-dev
+   npx supabase init
+   ```
 2. Start Supabase locally:
    ```bash
-   supabase start
+   npx supabase start
    ```
 3. Apply migrations:
    ```bash
-   supabase db reset
+   npx supabase db reset
    ```
 4. Run the Edge Function (with required env values):
    ```bash
-   supabase functions serve api --env-file ./supabase/.env.local
+   npx supabase functions serve api --env-file ./supabase/.env.local
    ```
 
 Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `FIRECRAWL_API_KEY` to the
@@ -62,9 +74,20 @@ Use `supabase/.env.local.example` as a template.
 ## Local Dev Convenience
 Run the frontend with prefixed logs:
 ```bash
-make dev
+make dev-frontend
 ```
 Output is prefixed with `[frontend]` to make the process easy to follow.
+
+Run the backend with prefixed logs:
+```bash
+make dev-backend
+```
+Output is prefixed with `[backend]`.
+
+Run both together:
+```bash
+make dev
+```
 
 ## Testing
 Run the frontend and Supabase function tests locally:

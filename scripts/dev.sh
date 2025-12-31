@@ -12,7 +12,10 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-stdbuf -oL -eL make frontend 2>&1 | sed 's/^/[frontend] /' &
+./scripts/dev-backend.sh &
+pids+=("$!")
+
+./scripts/dev-frontend.sh &
 pids+=("$!")
 
 wait
