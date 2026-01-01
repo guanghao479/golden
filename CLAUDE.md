@@ -1,3 +1,3 @@
 # Claude Code Instructions
 
-Read and follow the engineering best practices defined in [AGENTS.md](AGENTS.md).
+Read and follow everything in [AGENTS.md](AGENTS.md).

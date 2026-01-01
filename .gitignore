@@ -18,5 +18,12 @@ dist/
 # Test fixtures (contains credentials and local test data)
 .test-fixtures/
 
+# TypeScript
+*.tsbuildinfo
+
+# IDE/Tool configs
+.kiro/
+.serena/
+
 # Misc
 .DS_Store
