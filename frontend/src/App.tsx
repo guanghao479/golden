@@ -17,6 +17,7 @@ import {
 import {
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   MapPinned,
   RefreshCw,
   Search,
@@ -24,6 +25,8 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 
+import { CrawlJobsTab } from "@/components/admin/CrawlJobsTab";
+import { PendingItemsTab } from "@/components/admin/PendingItemsTab";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,89 +36,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
-
-type Event = {
-  id: string;
-  source_url: string | null;
-  title: string | null;
-  description: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  location_name: string | null;
-  address: string | null;
-  website: string | null;
-  tags: string[];
-  approved: boolean;
-};
-
-type Place = {
-  id: string;
-  source_url: string | null;
-  name: string | null;
-  description: string | null;
-  category: string | null;
-  address: string | null;
-  website: string | null;
-  family_friendly: boolean;
-  tags: string[];
-  approved: boolean;
-};
-
-type EventDraft = {
-  title: string;
-  description: string;
-  start_time: string;
-  end_time: string;
-  location_name: string;
-  address: string;
-  website: string;
-  tags: string;
-};
-
-type PlaceDraft = {
-  name: string;
-  description: string;
-  category: string;
-  address: string;
-  website: string;
-  family_friendly: boolean;
-  tags: string;
-};
-
-type CrawlJob = {
-  id: string;
-  status: "pending" | "completed" | "failed";
-  created_at?: string | null;
-};
-
-type AppData = {
-  events: Event[];
-  places: Place[];
-  pendingEvents: Event[];
-  pendingPlaces: Place[];
-  pendingCrawlJobs: CrawlJob[];
-  crawlUrl: string;
-  crawlType: "events" | "places";
-  statusMessage: string | null;
-  refreshMessage: string | null;
-  isSubmitting: boolean;
-  isRefreshing: boolean;
-  session: Session | null;
-  authError: string | null;
-  authLoading: boolean;
-  setCrawlUrl: (value: string) => void;
-  setCrawlType: (value: "events" | "places") => void;
-  handleCrawlSubmit: () => void;
-  handleRefreshJobs: () => void;
-  saveEvent: (id: string, draft: EventDraft) => void;
-  savePlace: (id: string, draft: PlaceDraft) => void;
-  approveEvent: (id: string) => void;
-  approvePlace: (id: string) => void;
-  handleSignIn: (email: string, password: string) => void;
-  handleSignOut: () => void;
-};
+import type {
+  AppData,
+  CrawlJob,
+  Event,
+  EventDraft,
+  Place,
+  PlaceDraft,
+} from "@/types";
 
 const AppDataContext = createContext<AppData | null>(null);
 
@@ -145,10 +75,7 @@ const highlights = [
   },
 ];
 
-const navLinkStyles = ({ isActive }: { isActive: boolean }) =>
-  `text-sm font-medium transition-colors ${
-    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-  }`;
+const navLinkInactive = "text-sm font-medium transition-colors text-muted-foreground hover:text-foreground";
 
 function MarketingPage() {
   return (
@@ -294,6 +221,7 @@ function ExplorePage({ events, places }: ExplorePageProps) {
 }
 
 type AdminPageProps = {
+  allCrawlJobs: CrawlJob[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
   pendingCrawlJobs: CrawlJob[];
@@ -311,293 +239,12 @@ type AdminPageProps = {
   onSavePlace: (id: string, draft: PlaceDraft) => void;
   onApproveEvent: (id: string) => void;
   onApprovePlace: (id: string) => void;
+  onDeleteEvent: (id: string) => void;
+  onDeletePlace: (id: string) => void;
 };
-
-type EventReviewCardProps = {
-  event: Event;
-  onSave: (id: string, draft: EventDraft) => void;
-  onApprove: (id: string) => void;
-};
-
-function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
-  const form = useForm<EventDraft>({
-    defaultValues: {
-      title: event.title ?? "",
-      description: event.description ?? "",
-      start_time: event.start_time ?? "",
-      end_time: event.end_time ?? "",
-      location_name: event.location_name ?? "",
-      address: event.address ?? "",
-      website: event.website ?? "",
-      tags: event.tags?.join(", ") ?? "",
-    },
-    onSubmit: async ({ value }) => {
-      await onSave(event.id, value);
-    },
-  });
-
-  useEffect(() => {
-    form.reset({
-      values: {
-        title: event.title ?? "",
-        description: event.description ?? "",
-        start_time: event.start_time ?? "",
-        end_time: event.end_time ?? "",
-        location_name: event.location_name ?? "",
-        address: event.address ?? "",
-        website: event.website ?? "",
-        tags: event.tags?.join(", ") ?? "",
-      },
-    });
-  }, [event, form]);
-
-  return (
-    <div className="rounded-2xl border border-muted p-4">
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void form.handleSubmit();
-        }}
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <form.Field
-              name="title"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Event title"
-                />
-              )}
-            />
-            <form.Field
-              name="description"
-              children={(field) => (
-                <Textarea
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Description"
-                />
-              )}
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-            <form.Field
-              name="start_time"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Start time"
-                />
-              )}
-            />
-            <form.Field
-              name="end_time"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="End time"
-                />
-              )}
-            />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <form.Field
-              name="location_name"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Location"
-                />
-              )}
-            />
-            <form.Field
-              name="address"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Address"
-                />
-              )}
-            />
-            <form.Field
-              name="website"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Website"
-                />
-              )}
-            />
-            <form.Field
-              name="tags"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Tags (comma separated)"
-                />
-              )}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button variant="outline" type="submit">
-            Save edits
-          </Button>
-          <Button type="button" onClick={() => onApprove(event.id)}>
-            Approve event
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-type PlaceReviewCardProps = {
-  place: Place;
-  onSave: (id: string, draft: PlaceDraft) => void;
-  onApprove: (id: string) => void;
-};
-
-function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
-  const form = useForm<PlaceDraft>({
-    defaultValues: {
-      name: place.name ?? "",
-      description: place.description ?? "",
-      category: place.category ?? "",
-      address: place.address ?? "",
-      website: place.website ?? "",
-      family_friendly: place.family_friendly ?? false,
-      tags: place.tags?.join(", ") ?? "",
-    },
-    onSubmit: async ({ value }) => {
-      await onSave(place.id, value);
-    },
-  });
-
-  useEffect(() => {
-    form.reset({
-      values: {
-        name: place.name ?? "",
-        description: place.description ?? "",
-        category: place.category ?? "",
-        address: place.address ?? "",
-        website: place.website ?? "",
-        family_friendly: place.family_friendly ?? false,
-        tags: place.tags?.join(", ") ?? "",
-      },
-    });
-  }, [place, form]);
-
-  return (
-    <div className="rounded-2xl border border-muted p-4">
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void form.handleSubmit();
-        }}
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <form.Field
-              name="name"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Place name"
-                />
-              )}
-            />
-            <form.Field
-              name="description"
-              children={(field) => (
-                <Textarea
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Description"
-                />
-              )}
-            />
-            <form.Field
-              name="category"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Category"
-                />
-              )}
-            />
-          </div>
-          <div className="space-y-3">
-            <form.Field
-              name="address"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Address"
-                />
-              )}
-            />
-            <form.Field
-              name="website"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Website"
-                />
-              )}
-            />
-            <form.Field
-              name="family_friendly"
-              children={(field) => (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(field.state.value)}
-                    onChange={(e) => field.handleChange(e.target.checked)}
-                    className="h-4 w-4 rounded border-muted"
-                  />
-                  Family-friendly
-                </div>
-              )}
-            />
-            <form.Field
-              name="tags"
-              children={(field) => (
-                <Input
-                  value={field.state.value ?? ""}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  placeholder="Tags (comma separated)"
-                />
-              )}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button variant="outline" type="submit">
-            Save edits
-          </Button>
-          <Button type="button" onClick={() => onApprove(place.id)}>
-            Approve place
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
 
 function AdminPage({
+  allCrawlJobs,
   pendingEvents,
   pendingPlaces,
   pendingCrawlJobs,
@@ -615,6 +262,8 @@ function AdminPage({
   onSavePlace,
   onApproveEvent,
   onApprovePlace,
+  onDeleteEvent,
+  onDeletePlace,
 }: AdminPageProps) {
   return (
     <main className="px-6 pb-16">
@@ -665,73 +314,95 @@ function AdminPage({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle>Review pending events</CardTitle>
-                <CardDescription>
-                  Edit the details before approving.
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                onClick={onRefreshJobs}
-                disabled={isRefreshing}
-                className="gap-2"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-                />
-                {isRefreshing ? "Refreshing..." : "Refresh"}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {pendingCrawlJobs.length > 0 && (
-              <div className="rounded-xl border border-muted bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                ⏳ {pendingCrawlJobs.length} crawl
-                {pendingCrawlJobs.length === 1 ? "" : "s"} in progress...
-              </div>
-            )}
-            {refreshMessage && (
-              <p className="text-sm text-muted-foreground">{refreshMessage}</p>
-            )}
-            {pendingEvents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending events.</p>
-            ) : (
-              pendingEvents.map((event) => (
-                <EventReviewCard
-                  key={event.id}
-                  event={event}
-                  onSave={onSaveEvent}
-                  onApprove={onApproveEvent}
-                />
-              ))
-            )}
-          </CardContent>
-        </Card>
+        {pendingCrawlJobs.length > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-muted bg-muted/40 px-4 py-3">
+            <span className="text-sm text-muted-foreground">
+              {pendingCrawlJobs.length} crawl
+              {pendingCrawlJobs.length === 1 ? "" : "s"} in progress...
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefreshJobs}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              {isRefreshing ? "Refreshing..." : "Refresh Jobs"}
+            </Button>
+          </div>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Review pending places</CardTitle>
-            <CardDescription>Confirm the experience before publishing.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {pendingPlaces.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending places.</p>
-            ) : (
-              pendingPlaces.map((place) => (
-                <PlaceReviewCard
-                  key={place.id}
-                  place={place}
-                  onSave={onSavePlace}
-                  onApprove={onApprovePlace}
+        {refreshMessage && (
+          <p className="text-sm text-muted-foreground">{refreshMessage}</p>
+        )}
+
+        <Tabs defaultValue="pending" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="pending" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Pending Review ({pendingEvents.length + pendingPlaces.length})
+            </TabsTrigger>
+            <TabsTrigger value="jobs" className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Crawl Jobs ({allCrawlJobs.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pending">
+            <Card>
+              <CardHeader>
+                <CardTitle>Review Pending Items</CardTitle>
+                <CardDescription>
+                  Edit and approve events or places before publishing.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PendingItemsTab
+                  pendingEvents={pendingEvents}
+                  pendingPlaces={pendingPlaces}
+                  onSaveEvent={onSaveEvent}
+                  onSavePlace={onSavePlace}
+                  onApproveEvent={onApproveEvent}
+                  onApprovePlace={onApprovePlace}
+                  onDeleteEvent={onDeleteEvent}
+                  onDeletePlace={onDeletePlace}
                 />
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="jobs">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Crawl Jobs</CardTitle>
+                    <CardDescription>
+                      View all crawl jobs and their status.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={onRefreshJobs}
+                    disabled={isRefreshing}
+                    className="gap-2"
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                    />
+                    {isRefreshing ? "Refreshing..." : "Refresh"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <CrawlJobsTab jobs={allCrawlJobs} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </section>
     </main>
   );
@@ -845,6 +516,7 @@ function ExplorePlacesRoute() {
 
 function AdminRoute() {
   const {
+    allCrawlJobs,
     pendingEvents,
     pendingPlaces,
     pendingCrawlJobs,
@@ -865,12 +537,15 @@ function AdminRoute() {
     savePlace,
     approveEvent,
     approvePlace,
+    deleteEvent,
+    deletePlace,
     handleSignIn,
     handleSignOut,
   } = useAppData();
 
   return session ? (
     <AdminPage
+      allCrawlJobs={allCrawlJobs}
       pendingEvents={pendingEvents}
       pendingPlaces={pendingPlaces}
       pendingCrawlJobs={pendingCrawlJobs}
@@ -888,6 +563,8 @@ function AdminRoute() {
       onSavePlace={savePlace}
       onApproveEvent={approveEvent}
       onApprovePlace={approvePlace}
+      onDeleteEvent={deleteEvent}
+      onDeletePlace={deletePlace}
     />
   ) : (
     <AdminAuthPanel
@@ -928,7 +605,7 @@ function RootLayout() {
         .select("*")
         .eq("approved", true)
         .order("created_at", { ascending: false });
-      return data ?? [];
+      return (data ?? []) as Event[];
     },
   });
 
@@ -940,7 +617,7 @@ function RootLayout() {
         .select("*")
         .eq("approved", true)
         .order("created_at", { ascending: false });
-      return data ?? [];
+      return (data ?? []) as Place[];
     },
   });
 
@@ -953,7 +630,7 @@ function RootLayout() {
         .select("*")
         .eq("approved", false)
         .order("created_at", { ascending: false });
-      return data ?? [];
+      return (data ?? []) as Event[];
     },
   });
 
@@ -966,7 +643,19 @@ function RootLayout() {
         .select("*")
         .eq("approved", false)
         .order("created_at", { ascending: false });
-      return data ?? [];
+      return (data ?? []) as Place[];
+    },
+  });
+
+  const allCrawlJobsQuery = useQuery({
+    queryKey: ["crawl_jobs", "all", session?.user.id, isAdminRoute],
+    enabled: isAdminRoute && Boolean(session),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("crawl_jobs")
+        .select("*")
+        .order("created_at", { ascending: false });
+      return (data ?? []) as CrawlJob[];
     },
   });
 
@@ -977,7 +666,7 @@ function RootLayout() {
     queryFn: async () => {
       const { data } = await supabase
         .from("crawl_jobs")
-        .select("id, status, created_at")
+        .select("*")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       return (data ?? []) as CrawlJob[];
@@ -988,6 +677,7 @@ function RootLayout() {
   const places = placesQuery.data ?? [];
   const pendingEvents = pendingEventsQuery.data ?? [];
   const pendingPlaces = pendingPlacesQuery.data ?? [];
+  const allCrawlJobs = allCrawlJobsQuery.data ?? [];
   const pendingCrawlJobs = pendingCrawlJobsQuery.data ?? [];
 
   useEffect(() => {
@@ -1017,9 +707,8 @@ function RootLayout() {
     setIsSubmitting(true);
     setStatusMessage(null);
     setRefreshMessage(null);
-    const { error } = await supabase.functions.invoke("api", {
+    const { error } = await supabase.functions.invoke("api/crawl", {
       method: "POST",
-      path: "/crawl",
       body: { url: crawlUrl, type: crawlType },
     });
 
@@ -1033,7 +722,7 @@ function RootLayout() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
         queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_jobs", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_jobs"] }),
       ]);
     }
     setIsSubmitting(false);
@@ -1042,9 +731,8 @@ function RootLayout() {
   const handleRefreshJobs = async () => {
     setIsRefreshing(true);
     setRefreshMessage(null);
-    const { data, error } = await supabase.functions.invoke("api", {
+    const { data, error } = await supabase.functions.invoke("api/refresh", {
       method: "POST",
-      path: "/refresh",
     });
 
     if (error) {
@@ -1067,7 +755,7 @@ function RootLayout() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
         queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_jobs", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_jobs"] }),
       ]);
     }
     setIsRefreshing(false);
@@ -1128,6 +816,16 @@ function RootLayout() {
     ]);
   };
 
+  const deleteEvent = async (id: string) => {
+    await supabase.from("events").delete().eq("id", id);
+    await queryClient.invalidateQueries({ queryKey: ["events", "pending"] });
+  };
+
+  const deletePlace = async (id: string) => {
+    await supabase.from("places").delete().eq("id", id);
+    await queryClient.invalidateQueries({ queryKey: ["places", "pending"] });
+  };
+
   const handleSignIn = async (email: string, password: string) => {
     setAuthError(null);
     setAuthLoading(true);
@@ -1150,6 +848,7 @@ function RootLayout() {
     places,
     pendingEvents,
     pendingPlaces,
+    allCrawlJobs,
     pendingCrawlJobs,
     crawlUrl,
     crawlType,
@@ -1168,6 +867,8 @@ function RootLayout() {
     savePlace,
     approveEvent,
     approvePlace,
+    deleteEvent,
+    deletePlace,
     handleSignIn,
     handleSignOut,
   };
@@ -1184,16 +885,16 @@ function RootLayout() {
               </h1>
             </div>
             <nav className="flex flex-wrap gap-4">
-              <Link to="/" className={navLinkStyles}>
+              <Link to="/" className={navLinkInactive}>
                 Home
               </Link>
-              <Link to="/explore/events" className={navLinkStyles}>
+              <Link to="/explore/events" className={navLinkInactive}>
                 Events
               </Link>
-              <Link to="/explore/places" className={navLinkStyles}>
+              <Link to="/explore/places" className={navLinkInactive}>
                 Places
               </Link>
-              <Link to="/admin" className={navLinkStyles}>
+              <Link to="/admin" className={navLinkInactive}>
                 Admin
               </Link>
             </nav>
