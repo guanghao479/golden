@@ -365,7 +365,7 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="title"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Event title"
                 />
@@ -375,33 +375,33 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="description"
               children={(field) => (
                 <Textarea
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Description"
                 />
               )}
             />
             <div className="grid gap-3 sm:grid-cols-2">
-              <form.Field
-                name="start_time"
-                children={(field) => (
-                  <Input
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="Start time"
-                  />
-                )}
-              />
-              <form.Field
-                name="end_time"
-                children={(field) => (
-                  <Input
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="End time"
-                  />
-                )}
-              />
+            <form.Field
+              name="start_time"
+              children={(field) => (
+                <Input
+                  value={field.state.value ?? ""}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Start time"
+                />
+              )}
+            />
+            <form.Field
+              name="end_time"
+              children={(field) => (
+                <Input
+                  value={field.state.value ?? ""}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="End time"
+                />
+              )}
+            />
             </div>
           </div>
           <div className="space-y-3">
@@ -409,7 +409,7 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="location_name"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Location"
                 />
@@ -419,7 +419,7 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="address"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Address"
                 />
@@ -429,7 +429,7 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="website"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Website"
                 />
@@ -439,7 +439,7 @@ function EventReviewCard({ event, onSave, onApprove }: EventReviewCardProps) {
               name="tags"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Tags (comma separated)"
                 />
@@ -510,7 +510,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="name"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Place name"
                 />
@@ -520,7 +520,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="description"
               children={(field) => (
                 <Textarea
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Description"
                 />
@@ -530,7 +530,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="category"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Category"
                 />
@@ -542,7 +542,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="address"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Address"
                 />
@@ -552,7 +552,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="website"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Website"
                 />
@@ -564,7 +564,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
                     type="checkbox"
-                    checked={field.state.value}
+                    checked={Boolean(field.state.value)}
                     onChange={(e) => field.handleChange(e.target.checked)}
                     className="h-4 w-4 rounded border-muted"
                   />
@@ -576,7 +576,7 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
               name="tags"
               children={(field) => (
                 <Input
-                  value={field.state.value}
+                  value={field.state.value ?? ""}
                   onChange={(e) => field.handleChange(e.target.value)}
                   placeholder="Tags (comma separated)"
                 />
@@ -796,7 +796,7 @@ function AdminAuthPanel({
                     children={(field) => (
                       <Input
                         type="email"
-                        value={field.state.value}
+                        value={field.state.value ?? ""}
                         onChange={(event) =>
                           field.handleChange(event.target.value)
                         }
@@ -809,7 +809,7 @@ function AdminAuthPanel({
                     children={(field) => (
                       <Input
                         type="password"
-                        value={field.state.value}
+                        value={field.state.value ?? ""}
                         onChange={(event) =>
                           field.handleChange(event.target.value)
                         }
@@ -973,6 +973,7 @@ function RootLayout() {
   const pendingCrawlJobsQuery = useQuery({
     queryKey: ["crawl_jobs", "pending", session?.user.id, isAdminRoute],
     enabled: isAdminRoute && Boolean(session),
+    refetchInterval: isAdminRoute && Boolean(session) ? 5000 : false,
     queryFn: async () => {
       const { data } = await supabase
         .from("crawl_jobs")
