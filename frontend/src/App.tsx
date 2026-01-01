@@ -18,6 +18,7 @@ import {
   CalendarDays,
   CheckCircle2,
   MapPinned,
+  RefreshCw,
   Search,
   ShieldCheck,
 } from "lucide-react";
@@ -83,21 +84,31 @@ type PlaceDraft = {
   tags: string;
 };
 
+type CrawlJob = {
+  id: string;
+  status: "pending" | "completed" | "failed";
+  created_at?: string | null;
+};
+
 type AppData = {
   events: Event[];
   places: Place[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
+  pendingCrawlJobs: CrawlJob[];
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
+  refreshMessage: string | null;
   isSubmitting: boolean;
+  isRefreshing: boolean;
   session: Session | null;
   authError: string | null;
   authLoading: boolean;
   setCrawlUrl: (value: string) => void;
   setCrawlType: (value: "events" | "places") => void;
   handleCrawlSubmit: () => void;
+  handleRefreshJobs: () => void;
   saveEvent: (id: string, draft: EventDraft) => void;
   savePlace: (id: string, draft: PlaceDraft) => void;
   approveEvent: (id: string) => void;
@@ -285,13 +296,17 @@ function ExplorePage({ events, places }: ExplorePageProps) {
 type AdminPageProps = {
   pendingEvents: Event[];
   pendingPlaces: Place[];
+  pendingCrawlJobs: CrawlJob[];
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
+  refreshMessage: string | null;
   isSubmitting: boolean;
+  isRefreshing: boolean;
   onCrawlUrlChange: (value: string) => void;
   onCrawlTypeChange: (value: "events" | "places") => void;
   onCrawlSubmit: () => void;
+  onRefreshJobs: () => void;
   onSaveEvent: (id: string, draft: EventDraft) => void;
   onSavePlace: (id: string, draft: PlaceDraft) => void;
   onApproveEvent: (id: string) => void;
@@ -585,13 +600,17 @@ function PlaceReviewCard({ place, onSave, onApprove }: PlaceReviewCardProps) {
 function AdminPage({
   pendingEvents,
   pendingPlaces,
+  pendingCrawlJobs,
   crawlUrl,
   crawlType,
   statusMessage,
+  refreshMessage,
   isSubmitting,
+  isRefreshing,
   onCrawlUrlChange,
   onCrawlTypeChange,
   onCrawlSubmit,
+  onRefreshJobs,
   onSaveEvent,
   onSavePlace,
   onApproveEvent,
@@ -648,10 +667,36 @@ function AdminPage({
 
         <Card>
           <CardHeader>
-            <CardTitle>Review pending events</CardTitle>
-            <CardDescription>Edit the details before approving.</CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>Review pending events</CardTitle>
+                <CardDescription>
+                  Edit the details before approving.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                onClick={onRefreshJobs}
+                disabled={isRefreshing}
+                className="gap-2"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+                {isRefreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {pendingCrawlJobs.length > 0 && (
+              <div className="rounded-xl border border-muted bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                ⏳ {pendingCrawlJobs.length} crawl
+                {pendingCrawlJobs.length === 1 ? "" : "s"} in progress...
+              </div>
+            )}
+            {refreshMessage && (
+              <p className="text-sm text-muted-foreground">{refreshMessage}</p>
+            )}
             {pendingEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">No pending events.</p>
             ) : (
@@ -802,16 +847,20 @@ function AdminRoute() {
   const {
     pendingEvents,
     pendingPlaces,
+    pendingCrawlJobs,
     crawlUrl,
     crawlType,
     statusMessage,
+    refreshMessage,
     isSubmitting,
+    isRefreshing,
     session,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
+    handleRefreshJobs,
     saveEvent,
     savePlace,
     approveEvent,
@@ -824,13 +873,17 @@ function AdminRoute() {
     <AdminPage
       pendingEvents={pendingEvents}
       pendingPlaces={pendingPlaces}
+      pendingCrawlJobs={pendingCrawlJobs}
       crawlUrl={crawlUrl}
       crawlType={crawlType}
       statusMessage={statusMessage}
+      refreshMessage={refreshMessage}
       isSubmitting={isSubmitting}
+      isRefreshing={isRefreshing}
       onCrawlUrlChange={setCrawlUrl}
       onCrawlTypeChange={setCrawlType}
       onCrawlSubmit={handleCrawlSubmit}
+      onRefreshJobs={handleRefreshJobs}
       onSaveEvent={saveEvent}
       onSavePlace={savePlace}
       onApproveEvent={approveEvent}
@@ -851,7 +904,9 @@ function RootLayout() {
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawlType, setCrawlType] = useState<"events" | "places">("events");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -915,10 +970,24 @@ function RootLayout() {
     },
   });
 
+  const pendingCrawlJobsQuery = useQuery({
+    queryKey: ["crawl_jobs", "pending", session?.user.id, isAdminRoute],
+    enabled: isAdminRoute && Boolean(session),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("crawl_jobs")
+        .select("id, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      return (data ?? []) as CrawlJob[];
+    },
+  });
+
   const events = eventsQuery.data ?? [];
   const places = placesQuery.data ?? [];
   const pendingEvents = pendingEventsQuery.data ?? [];
   const pendingPlaces = pendingPlacesQuery.data ?? [];
+  const pendingCrawlJobs = pendingCrawlJobsQuery.data ?? [];
 
   useEffect(() => {
     const setInitialSession = async () => {
@@ -946,6 +1015,7 @@ function RootLayout() {
 
     setIsSubmitting(true);
     setStatusMessage(null);
+    setRefreshMessage(null);
     const { error } = await supabase.functions.invoke("api", {
       method: "POST",
       path: "/crawl",
@@ -955,14 +1025,51 @@ function RootLayout() {
     if (error) {
       setStatusMessage(error.message ?? "Crawl failed. Check the API logs.");
     } else {
-      setStatusMessage("Crawl started. New items were added to review.");
+      setStatusMessage(
+        "Crawl queued. Use refresh to check for completed jobs.",
+      );
       setCrawlUrl("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
         queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_jobs", "pending"] }),
       ]);
     }
     setIsSubmitting(false);
+  };
+
+  const handleRefreshJobs = async () => {
+    setIsRefreshing(true);
+    setRefreshMessage(null);
+    const { data, error } = await supabase.functions.invoke("api", {
+      method: "POST",
+      path: "/refresh",
+    });
+
+    if (error) {
+      setRefreshMessage(error.message ?? "Failed to refresh crawl jobs.");
+    } else {
+      const summary = data as {
+        completed?: number;
+        failed?: number;
+        pending?: number;
+        insertedEvents?: number;
+        insertedPlaces?: number;
+      };
+      const completedCount = summary.completed ?? 0;
+      const failedCount = summary.failed ?? 0;
+      const insertedCount =
+        (summary.insertedEvents ?? 0) + (summary.insertedPlaces ?? 0);
+      setRefreshMessage(
+        `${completedCount} job${completedCount === 1 ? "" : "s"} completed, ${failedCount} failed, ${insertedCount} new item${insertedCount === 1 ? "" : "s"} added.`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_jobs", "pending"] }),
+      ]);
+    }
+    setIsRefreshing(false);
   };
 
   const saveEvent = async (id: string, draft: EventDraft) => {
@@ -1042,16 +1149,20 @@ function RootLayout() {
     places,
     pendingEvents,
     pendingPlaces,
+    pendingCrawlJobs,
     crawlUrl,
     crawlType,
     statusMessage,
+    refreshMessage,
     isSubmitting,
+    isRefreshing,
     session,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
+    handleRefreshJobs,
     saveEvent,
     savePlace,
     approveEvent,
