@@ -32,7 +32,7 @@ type CrawlHandlerOptions = {
   fetchFn?: typeof fetch;
 };
 
-const firecrawlEndpointDefault = "https://api.firecrawl.dev/v1/extract";
+const firecrawlEndpointDefault = "https://api.firecrawl.dev/v2/extract";
 
 const schemas = {
   events: {
@@ -136,7 +136,7 @@ export const createCrawlHandler = ({
     }
 
     const firecrawlBody = {
-      url: targetUrl,
+      urls: [targetUrl],
       schema: schemas[crawlType],
     };
     console.log(`[api] Calling Firecrawl API: ${firecrawlEndpoint}`);
@@ -162,6 +162,7 @@ export const createCrawlHandler = ({
 
     const firecrawlPayload =
       (await firecrawlResponse.json()) as FirecrawlResponse;
+    console.log(`[api] Firecrawl response: ${JSON.stringify(firecrawlPayload)}`);
     const data = firecrawlPayload.data ?? {};
 
     if (crawlType === "events") {
