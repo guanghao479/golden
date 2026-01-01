@@ -30,10 +30,30 @@
 
 ## 5. Testing
 
+### Principles
 * **Test at boundaries**: Focus on inputs/outputs, not implementation details.
 * **Test pyramid**: Many unit tests, fewer integration tests, minimal E2E.
 * **Test behavior, not code**: Tests should survive refactoring.
 * **No flaky tests**: Delete or fix them immediately.
+
+### Frameworks
+* **Frontend**: Vitest - run with `npm test` from `frontend/`
+* **Backend Edge Functions**: Deno test - run with `deno test` from `supabase/functions/`
+
+### Conventions
+* Frontend tests: `src/**/*.test.ts` (colocated with source)
+* Backend tests: `supabase/functions/<function-name>/*.test.ts`
+
+### Running Tests
+* Before committing: `cd frontend && npm test`
+* Backend: `cd supabase/functions/api && deno test --allow-env handler.test.ts`
+
+### E2E Testing with `/test-implementation`
+Use the `test-implementation` skill for browser-based E2E testing:
+1. Store test credentials and URLs in `.test-fixtures/` (gitignored)
+2. Copy from `.test-fixtures.example/` and fill in your values
+3. Run `make dev` to start local environment
+4. Use Chrome DevTools MCP to interact with the app
 
 ## 6. Version Control & Review
 
@@ -81,6 +101,8 @@
 ### Styling / UI components
 
 * Tailwind + shadcn/ui
+* Always use `npx shadcn@latest add <component>` to add new UI components
+* Never manually create UI components that shadcn/ui provides
 
 ### State/data fetching & Forms
 
