@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST 'http://127.0.0.1:54321/functions/v1/api' )",
+      "Bash(npx:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd local dev improvements and request logging\n\n- Reorganize env files: frontend/.env.example and supabase/.env.example\n- Add supabase/.gitignore for local env files\n- Add supabase/config.toml with JWT verification disabled for local testing\n- Improve dev-backend.sh with line-buffered output and [backend] prefix\n- Add comprehensive request logging to Edge Function handler\n- Log Firecrawl API request/response details for debugging\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(make dev:*)",
+      "Bash(cat:*)",
+      "Bash(lsof:*)",
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__fill_form",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__get_network_request",
+      "Bash(docker logs:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.firecrawl.dev)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nUpgrade Firecrawl API from v1 to v2 format\n\n- Update endpoint: v1/extract -> v2/extract\n- Update request body: url -> urls \\(array format\\)\n- Add response logging for debugging\n\nNote: v2 API returns async job IDs instead of immediate results.\nPolling implementation needed for production use.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr edit 10 --title \"Add local dev improvements and upgrade Firecrawl to v2\" --body \"$\\(cat <<''EOF''\n## Summary\n- Improve local development setup with npx supabase workflow\n- Add comprehensive request logging to Edge Function\n- Upgrade Firecrawl API from v1 to v2 format\n\n## Changes\n\n### Local Development Setup\n- Updated `scripts/dev-backend.sh` to use `npx supabase` instead of global CLI\n- Reorganized env files: `frontend/.env.example` and `supabase/.env.example`\n- Added `supabase/.gitignore` for local env files\n- Added `supabase/config.toml` with JWT verification disabled for local testing\n- Improved `dev-backend.sh` with line-buffered output and `[backend]` prefix\n- Updated README.md with npx workflow instructions\n\n### Request Logging\n- Add comprehensive request logging to Edge Function handler\n- Log Firecrawl API request/response details for debugging\n\n### Firecrawl API v2 Upgrade\n- **Endpoint**: Changed from `/v1/extract` to `/v2/extract`\n- **Request format**: Changed from `url` \\(string\\) to `urls` \\(array\\)\n- **Response logging**: Added to track API responses\n- **Note**: v2 API returns async job IDs instead of immediate results. Polling implementation needed for production use.\n\n## Testing\n- Tested local dev environment startup\n- Verified Firecrawl v2 API call succeeds \\(200 OK\\) vs previous v1 format error \\(400 Bad Request\\)\n- Confirmed request/response logging works\n\n## Known Limitations\n- Firecrawl v2 uses async job processing - current implementation doesn''t poll for results yet\n- Job polling needs to be implemented to retrieve actual extracted events\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
+      "Bash(gh auth:*)",
+      "Skill(feature-dev:feature-dev)",
+      "Bash(gh issue create --title \"Add crawl job table and pending events/places management UI\" --body \"$\\(cat <<''EOF''\n## Summary\nAdd a comprehensive UI for managing crawl jobs and reviewing pending events/places before they are published.\n\n## Feature Requirements\n\n### 1. Crawl Job Table\n- Display all crawl jobs in a table view\n- Show relevant job information \\(status, URL, created date, etc.\\)\n- Add filtering capabilities:\n  - Filter by status \\(pending, running, completed, failed\\)\n  - Filter by date range\n  - Search by URL or job ID\n\n### 2. Pending Events & Places Tab\nCreate a separate tab/section for managing pending events and places:\n\n#### List View\n- Display pending events and places in a list format\n- Show key information \\(name, source, status, created date\\)\n- Support filtering and sorting\n- Allow bulk actions \\(approve, reject, delete\\)\n\n#### Detail/Edit View\n- View full details of a pending event or place\n- Edit fields before approval\n- Preview how the event/place will appear when published\n- Actions: Approve, Reject, Save Changes, Delete\n\n## Acceptance Criteria\n- [ ] Crawl job table with filtering\n- [ ] Pending events list view\n- [ ] Pending places list view\n- [ ] Detail/edit view for pending events\n- [ ] Detail/edit view for pending places\n- [ ] Navigation between list and detail views\n\n## Technical Notes\n- Should integrate with existing Supabase backend\n- Consider pagination for large datasets\n- Maintain consistent UI/UX with existing components\nEOF\n\\)\")"
+    ]
+  }
+}
