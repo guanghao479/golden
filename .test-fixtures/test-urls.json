@@ -1,0 +1,11 @@
+{
+  "frontend": "http://localhost:5173",
+  "backend": "http://127.0.0.1:54321",
+  "crawlTargets": [
+    {
+      "name": "Visit Bellevue Events",
+      "url": "https://www.visitbellevuewa.com/events/",
+      "description": "Bellevue tourism events page for testing crawl functionality"
+    }
+  ]
+}
