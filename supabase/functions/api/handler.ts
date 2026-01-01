@@ -86,14 +86,17 @@ export const createCrawlHandler = ({
   fetchFn = fetch,
 }: CrawlHandlerOptions) => {
   return async (req: Request) => {
+    const url = new URL(req.url);
+    console.log(`[api] ${req.method} ${url.pathname}`);
+
     if (req.method === "OPTIONS") {
       return new Response("ok", { headers: corsHeaders });
     }
 
-    const url = new URL(req.url);
     const isCrawlEndpoint =
       url.pathname.endsWith("/crawl") || url.pathname.endsWith("/api");
     if (!isCrawlEndpoint) {
+      console.log(`[api] 404 - Not found: ${url.pathname}`);
       return new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -101,6 +104,7 @@ export const createCrawlHandler = ({
     }
 
     if (req.method !== "POST") {
+      console.log(`[api] 405 - Method not allowed: ${req.method}`);
       return new Response(JSON.stringify({ error: "Method not allowed" }), {
         status: 405,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,8 +114,10 @@ export const createCrawlHandler = ({
     const payload = (await req.json()) as CrawlRequest;
     const targetUrl = payload.url?.trim();
     const crawlType = payload.type;
+    console.log(`[api] Crawl request: type=${crawlType}, url=${targetUrl}`);
 
     if (!targetUrl || (crawlType !== "events" && crawlType !== "places")) {
+      console.log(`[api] 400 - Invalid request payload`);
       return new Response(JSON.stringify({ error: "Invalid request payload" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -119,6 +125,7 @@ export const createCrawlHandler = ({
     }
 
     if (!firecrawlApiKey) {
+      console.log(`[api] 500 - Missing FIRECRAWL_API_KEY`);
       return new Response(
         JSON.stringify({ error: "Missing FIRECRAWL_API_KEY" }),
         {
@@ -128,20 +135,26 @@ export const createCrawlHandler = ({
       );
     }
 
+    const firecrawlBody = {
+      url: targetUrl,
+      schema: schemas[crawlType],
+    };
+    console.log(`[api] Calling Firecrawl API: ${firecrawlEndpoint}`);
+    console.log(`[api] Firecrawl request body: ${JSON.stringify(firecrawlBody)}`);
     const firecrawlResponse = await fetchFn(firecrawlEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${firecrawlApiKey}`,
       },
-      body: JSON.stringify({
-        url: targetUrl,
-        schema: schemas[crawlType],
-      }),
+      body: JSON.stringify(firecrawlBody),
     });
 
     if (!firecrawlResponse.ok) {
-      return new Response(JSON.stringify({ error: "Firecrawl request failed" }), {
+      const errorBody = await firecrawlResponse.text();
+      console.log(`[api] 502 - Firecrawl request failed: ${firecrawlResponse.status}`);
+      console.log(`[api] Firecrawl error response: ${errorBody}`);
+      return new Response(JSON.stringify({ error: "Firecrawl request failed", details: errorBody }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -185,6 +198,7 @@ export const createCrawlHandler = ({
         });
       }
 
+      console.log(`[api] 200 - Inserted ${events.length} events`);
       return new Response(JSON.stringify({ inserted: events.length }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -223,6 +237,7 @@ export const createCrawlHandler = ({
       });
     }
 
+    console.log(`[api] 200 - Inserted ${places.length} places`);
     return new Response(JSON.stringify({ inserted: places.length }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
