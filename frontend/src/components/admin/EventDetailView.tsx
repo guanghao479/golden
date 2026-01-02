@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { Check, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,11 +181,31 @@ export function EventDetailView({
                 <form.Field
                   name="website"
                   children={(field) => (
-                    <Input
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      placeholder="https://..."
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder="https://..."
+                        className="flex-1"
+                      />
+                      {field.state.value && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                        >
+                          <a
+                            href={field.state.value}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open website"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   )}
                 />
               </div>

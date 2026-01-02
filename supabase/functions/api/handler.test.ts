@@ -1,43 +1,16 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createCrawlHandler } from "./handler.ts";
 
-type CrawlJob = {
-  id: string;
-  firecrawl_job_id: string;
-  source_url: string;
-  crawl_type: "events" | "places";
-  status: "pending" | "completed" | "failed";
-  created_at: string;
-};
-
-const createSupabaseStub = (jobs: CrawlJob[] = []) => {
+const createSupabaseStub = () => {
   const inserts: Array<{ table: string; payload: unknown }> = [];
-  const updates: Array<{ table: string; payload: unknown }> = [];
   const from = (table: string) => ({
     insert: async (payload: unknown) => {
       inserts.push({ table, payload });
       return { error: null, data: null };
     },
-    select: () => ({
-      eq: async (column: string, value: string) => {
-        if (table === "crawl_jobs" && column === "status") {
-          return {
-            data: jobs.filter((job) => job.status === value),
-            error: null,
-          };
-        }
-        return { data: [], error: null };
-      },
-    }),
-    update: (payload: unknown) => ({
-      eq: async () => {
-        updates.push({ table, payload });
-        return { error: null, data: null };
-      },
-    }),
   });
 
-  return { client: { from }, inserts, updates };
+  return { client: { from }, inserts };
 };
 
 Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
@@ -55,14 +28,35 @@ Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
   assertEquals(await response.json(), { error: "Missing FIRECRAWL_API_KEY" });
 });
 
-Deno.test("createCrawlHandler inserts events and crawl source", async () => {
+Deno.test("createCrawlHandler scrapes and inserts events", async () => {
   const { client, inserts } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
     fetchFn: async () =>
       new Response(
-        JSON.stringify({ success: true, id: "job-123" }),
+        JSON.stringify({
+          success: true,
+          data: {
+            json: {
+              events: [
+                {
+                  title: "Story Time",
+                  description: "Kids stories",
+                  start_time: "2025-01-01",
+                  end_time: "2025-01-01",
+                  location_name: "Library",
+                  address: "123 Main",
+                  website: "https://example.com",
+                  tags: ["kids"],
+                  price: "Free",
+                  age_range: "3-8 years",
+                  image_url: "https://example.com/storytime.jpg",
+                },
+              ],
+            },
+          },
+        }),
         { status: 200 },
       ),
   });
@@ -75,21 +69,18 @@ Deno.test("createCrawlHandler inserts events and crawl source", async () => {
   const response = await handler(request);
 
   assertEquals(response.status, 200);
-  assertEquals(await response.json(), { queued: true, jobId: "job-123" });
-  assertEquals(inserts.length, 1);
-  assertEquals(inserts[0].table, "crawl_jobs");
+  assertEquals(await response.json(), {
+    success: true,
+    insertedEvents: 1,
+    insertedPlaces: 0,
+  });
+  assertEquals(inserts.length, 2);
+  assertEquals(inserts[0].table, "events");
+  assertEquals(inserts[1].table, "crawl_sources");
 });
 
-Deno.test("createCrawlHandler refreshes pending crawl jobs", async () => {
-  const pendingJob: CrawlJob = {
-    id: "job-row",
-    firecrawl_job_id: "firecrawl-1",
-    source_url: "https://example.com",
-    crawl_type: "events",
-    status: "pending",
-    created_at: "2025-01-01T00:00:00Z",
-  };
-  const { client, inserts, updates } = createSupabaseStub([pendingJob]);
+Deno.test("createCrawlHandler scrapes and inserts places", async () => {
+  const { client, inserts } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
@@ -97,43 +88,64 @@ Deno.test("createCrawlHandler refreshes pending crawl jobs", async () => {
       new Response(
         JSON.stringify({
           success: true,
-          status: "completed",
           data: {
-            events: [
-              {
-                title: "Story Time",
-                description: "Kids stories",
-                start_time: "2025-01-01",
-                end_time: "2025-01-01",
-                location_name: "Library",
-                address: "123 Main",
-                website: "https://example.com",
-                tags: ["kids"],
-              },
-            ],
+            json: {
+              places: [
+                {
+                  name: "Kids Museum",
+                  description: "Fun for all ages",
+                  category: "Museum",
+                  address: "456 Oak St",
+                  website: "https://museum.com",
+                  family_friendly: true,
+                  tags: ["indoor", "educational"],
+                },
+              ],
+            },
           },
         }),
         { status: 200 },
       ),
   });
 
-  const request = new Request("http://localhost/api/refresh", {
+  const request = new Request("http://localhost/api/crawl", {
     method: "POST",
+    body: JSON.stringify({ url: "https://example.com", type: "places" }),
   });
 
   const response = await handler(request);
 
   assertEquals(response.status, 200);
   assertEquals(await response.json(), {
-    processed: 1,
-    completed: 1,
-    failed: 0,
-    pending: 0,
-    insertedEvents: 1,
-    insertedPlaces: 0,
+    success: true,
+    insertedEvents: 0,
+    insertedPlaces: 1,
   });
-  assertEquals(inserts[0].table, "events");
+  assertEquals(inserts.length, 2);
+  assertEquals(inserts[0].table, "places");
   assertEquals(inserts[1].table, "crawl_sources");
-  assertEquals(updates.length, 1);
-  assertEquals(updates[0].table, "crawl_jobs");
+});
+
+Deno.test("createCrawlHandler handles firecrawl failure", async () => {
+  const { client } = createSupabaseStub();
+  const handler = createCrawlHandler({
+    supabase: client,
+    firecrawlApiKey: "test-key",
+    fetchFn: async () =>
+      new Response(
+        JSON.stringify({ success: false, error: "Rate limited" }),
+        { status: 200 },
+      ),
+  });
+
+  const request = new Request("http://localhost/api/crawl", {
+    method: "POST",
+    body: JSON.stringify({ url: "https://example.com", type: "events" }),
+  });
+
+  const response = await handler(request);
+
+  assertEquals(response.status, 502);
+  const body = await response.json();
+  assertEquals(body.error, "Firecrawl scrape failed");
 });

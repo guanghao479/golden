@@ -212,6 +212,7 @@ function EventsPage({ events }: EventsPageProps) {
                 subtitle={formatEventDatetime(event.start_time, event.end_time)}
                 description={event.location_name || undefined}
                 category="events"
+                imageUrl={event.image_url}
                 onClick={() => setSelectedEvent(event)}
               />
             ))}
