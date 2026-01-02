@@ -31,6 +31,9 @@ export function EventDetailView({
       location_name: event.location_name ?? "",
       address: event.address ?? "",
       website: event.website ?? "",
+      price: event.price ?? "",
+      age_range: event.age_range ?? "",
+      image_url: event.image_url ?? "",
       tags: event.tags?.join(", ") ?? "",
     },
     onSubmit: async ({ value }) => {
@@ -177,6 +180,49 @@ export function EventDetailView({
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       placeholder="https://..."
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium">Price</label>
+                  <form.Field
+                    name="price"
+                    children={(field) => (
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder="Free, $15, $10-20"
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Age Range</label>
+                  <form.Field
+                    name="age_range"
+                    children={(field) => (
+                      <Input
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder="All ages, 3-8 years"
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Image URL</label>
+                <form.Field
+                  name="image_url"
+                  children={(field) => (
+                    <Input
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="https://example.com/image.jpg"
                     />
                   )}
                 />

@@ -9,23 +9,23 @@ import { useForm } from "@tanstack/react-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Link,
+  Navigate,
   Outlet,
   createRootRoute,
   createRoute,
   useRouterState,
 } from "@tanstack/react-router";
 import {
+  ArrowRight,
   CalendarDays,
-  CheckCircle2,
   ClipboardList,
   MapPinned,
   RefreshCw,
-  Search,
-  ShieldCheck,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 
 import { CrawlJobsTab } from "@/components/admin/CrawlJobsTab";
+import { EventDetailDialog } from "@/components/EventDetailDialog";
 import { PendingItemsTab } from "@/components/admin/PendingItemsTab";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,8 +36,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ListingCard } from "@/components/ui/listing-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
+import { formatEventDatetime } from "@/lib/utils";
 import type {
   AppData,
   CrawlJob,
@@ -57,164 +59,212 @@ const useAppData = () => {
   return context;
 };
 
-const highlights = [
-  {
-    icon: CalendarDays,
-    title: "Family-friendly events",
-    description: "Curate weekend festivals, library programs, and seasonal adventures.",
-  },
-  {
-    icon: MapPinned,
-    title: "Playful places",
-    description: "Discover parks, museums, and indoor play spaces vetted for kids.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Admin approvals",
-    description: "Review and polish each listing before it appears in the app.",
-  },
-];
-
 const navLinkInactive = "text-sm font-medium transition-colors text-muted-foreground hover:text-foreground";
 
-function MarketingPage() {
-  return (
-    <main className="px-6 pb-16">
-      <section className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-primary" />
-            Trusted family-ready listings
-          </span>
-          <h2 className="text-4xl font-semibold leading-tight text-foreground">
-            Discover what to do this weekend — curated for kids and caregivers.
-          </h2>
-          <p className="text-base text-muted-foreground">
-            Golden crawls community calendars and attraction sites, then our admin
-            team approves each listing before it appears in the mobile-friendly
-            directory.
-          </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild>
-              <Link to="/explore/events">
-                <Search className="mr-2 h-4 w-4" /> Explore events
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/explore/places">Browse activity places</Link>
-            </Button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {highlights.map((item) => (
-              <Card key={item.title} className="border-muted">
-                <CardHeader>
-                  <item.icon className="h-5 w-5 text-primary" />
-                  <CardTitle className="mt-3 text-base">{item.title}</CardTitle>
-                  <CardDescription>{item.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <Card className="bg-white">
-            <CardHeader>
-              <CardTitle>Why families use Golden</CardTitle>
-              <CardDescription>Hand-picked, always ready to go.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                We unify event calendars, park listings, and attraction sites into a
-                single feed that is reviewed by our admin team.
-              </p>
-              <p>
-                Browse verified activities, save your favorites, and plan your next
-                outing with confidence.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-primary text-primary-foreground">
-            <CardContent className="space-y-3 py-8">
-              <h3 className="text-2xl font-semibold">Ready to explore?</h3>
-              <p className="text-sm text-primary-foreground/80">
-                Connect your Supabase instance and Firecrawl API key to start
-                building your curated feed.
-              </p>
-              <Button asChild variant="outline" className="bg-white/10 text-white">
-                <Link to="/admin">Go to admin review</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-    </main>
-  );
-}
-
-type ExplorePageProps = {
+type MarketingPageProps = {
   events: Event[];
   places: Place[];
 };
 
-function ExplorePage({ events, places }: ExplorePageProps) {
+function MarketingPage({ events, places }: MarketingPageProps) {
+  const featuredEvents = events.slice(0, 4);
+  const featuredPlaces = places.slice(0, 4);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+
   return (
     <main className="px-6 pb-16">
-      <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-2">
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle>Upcoming events</CardTitle>
-            <CardDescription>Approved highlights near you</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No approved events yet.
-              </p>
-            ) : (
-              events.map((event) => (
-                <div key={event.id} className="rounded-xl bg-muted px-4 py-3">
-                  <p className="font-medium text-foreground">
-                    {event.title || "Untitled event"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {event.start_time || "Time TBD"} ·{" "}
-                    {event.location_name || "Location TBD"}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+      <section className="mx-auto max-w-6xl">
+        <div className="mb-16 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            Find family-friendly adventures
+          </h1>
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
+            Curated events and places for kids and caregivers. Every listing is reviewed and ready to go.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Button asChild size="lg">
+              <Link to="/events">
+                <CalendarDays className="mr-2 h-5 w-5" />
+                Browse Events
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link to="/places">
+                <MapPinned className="mr-2 h-5 w-5" />
+                Explore Places
+              </Link>
+            </Button>
+          </div>
+        </div>
 
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle>Activity places</CardTitle>
-            <CardDescription>Always-on family favorites</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {places.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No approved places yet.
-              </p>
-            ) : (
-              places.map((place) => (
-                <div
+        {featuredEvents.length > 0 && (
+          <section className="mb-12">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-foreground">Upcoming Events</h2>
+              <Button asChild variant="ghost" className="gap-1">
+                <Link to="/events">
+                  View all <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredEvents.map((event) => (
+                <ListingCard
+                  key={event.id}
+                  id={event.id}
+                  title={event.title || "Untitled event"}
+                  subtitle={formatEventDatetime(event.start_time, event.end_time)}
+                  description={event.location_name || undefined}
+                  category="events"
+                  imageUrl={event.image_url}
+                  onClick={() => setSelectedEvent(event)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {featuredPlaces.length > 0 && (
+          <section className="mb-12">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-foreground">Popular Places</h2>
+              <Button asChild variant="ghost" className="gap-1">
+                <Link to="/places">
+                  View all <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredPlaces.map((place) => (
+                <ListingCard
                   key={place.id}
-                  className="rounded-xl border border-muted px-4 py-3"
-                >
-                  <p className="font-medium text-foreground">
-                    {place.name || "Untitled place"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {place.category || "Family-friendly spot"}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                  id={place.id}
+                  title={place.name || "Untitled place"}
+                  subtitle={place.category || "Family-friendly spot"}
+                  description={place.address || undefined}
+                  category="places"
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {featuredEvents.length === 0 && featuredPlaces.length === 0 && (
+          <Card className="mx-auto max-w-md text-center">
+            <CardHeader>
+              <CardTitle>No listings yet</CardTitle>
+              <CardDescription>
+                Check back soon for family-friendly events and places.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline">
+                <Link to="/admin">Go to Admin</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      <EventDetailDialog
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onOpenChange={(open) => !open && setSelectedEvent(null)}
+      />
+    </main>
+  );
+}
+
+type EventsPageProps = {
+  events: Event[];
+};
+
+function EventsPage({ events }: EventsPageProps) {
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+
+  return (
+    <main className="px-6 pb-16">
+      <section className="mx-auto max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Events</h1>
+          <p className="mt-2 text-muted-foreground">
+            Family-friendly events happening soon
+          </p>
+        </div>
+
+        {events.length === 0 ? (
+          <Card className="text-center">
+            <CardHeader>
+              <CardTitle>No events yet</CardTitle>
+              <CardDescription>
+                Check back soon for upcoming family events.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {events.map((event) => (
+              <ListingCard
+                key={event.id}
+                id={event.id}
+                title={event.title || "Untitled event"}
+                subtitle={formatEventDatetime(event.start_time, event.end_time)}
+                description={event.location_name || undefined}
+                category="events"
+                onClick={() => setSelectedEvent(event)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <EventDetailDialog
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onOpenChange={(open) => !open && setSelectedEvent(null)}
+      />
+    </main>
+  );
+}
+
+type PlacesPageProps = {
+  places: Place[];
+};
+
+function PlacesPage({ places }: PlacesPageProps) {
+  return (
+    <main className="px-6 pb-16">
+      <section className="mx-auto max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Places</h1>
+          <p className="mt-2 text-muted-foreground">
+            Family-friendly destinations to explore
+          </p>
+        </div>
+
+        {places.length === 0 ? (
+          <Card className="text-center">
+            <CardHeader>
+              <CardTitle>No places yet</CardTitle>
+              <CardDescription>
+                Check back soon for family-friendly places.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {places.map((place) => (
+              <ListingCard
+                key={place.id}
+                id={place.id}
+                title={place.name || "Untitled place"}
+                subtitle={place.category || "Family-friendly spot"}
+                description={place.address || undefined}
+                category="places"
+              />
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
@@ -504,14 +554,27 @@ function AdminAuthPanel({
   );
 }
 
-function ExploreEventsRoute() {
+function MarketingRoute() {
   const { events, places } = useAppData();
-  return <ExplorePage events={events} places={places} />;
+  return <MarketingPage events={events} places={places} />;
 }
 
-function ExplorePlacesRoute() {
-  const { events, places } = useAppData();
-  return <ExplorePage events={events} places={places} />;
+function EventsRoute() {
+  const { events } = useAppData();
+  return <EventsPage events={events} />;
+}
+
+function PlacesRoute() {
+  const { places } = useAppData();
+  return <PlacesPage places={places} />;
+}
+
+function ExploreEventsRedirect() {
+  return <Navigate to="/events" replace />;
+}
+
+function ExplorePlacesRedirect() {
+  return <Navigate to="/places" replace />;
 }
 
 function AdminRoute() {
@@ -888,10 +951,10 @@ function RootLayout() {
               <Link to="/" className={navLinkInactive}>
                 Home
               </Link>
-              <Link to="/explore/events" className={navLinkInactive}>
+              <Link to="/events" className={navLinkInactive}>
                 Events
               </Link>
-              <Link to="/explore/places" className={navLinkInactive}>
+              <Link to="/places" className={navLinkInactive}>
                 Places
               </Link>
               <Link to="/admin" className={navLinkInactive}>
@@ -939,19 +1002,31 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: MarketingPage,
+  component: MarketingRoute,
+});
+
+const eventsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/events",
+  component: EventsRoute,
+});
+
+const placesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/places",
+  component: PlacesRoute,
 });
 
 const exploreEventsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/explore/events",
-  component: ExploreEventsRoute,
+  component: ExploreEventsRedirect,
 });
 
 const explorePlacesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/explore/places",
-  component: ExplorePlacesRoute,
+  component: ExplorePlacesRedirect,
 });
 
 const adminRoute = createRoute({
@@ -962,6 +1037,8 @@ const adminRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   indexRoute,
+  eventsRoute,
+  placesRoute,
   exploreEventsRoute,
   explorePlacesRoute,
   adminRoute,

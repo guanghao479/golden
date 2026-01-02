@@ -10,6 +10,9 @@ export type Event = {
   location_name: string | null;
   address: string | null;
   website: string | null;
+  price: string | null;
+  age_range: string | null;
+  image_url: string | null;
   tags: string[];
   approved: boolean;
   created_at?: string | null;
@@ -37,6 +40,9 @@ export type EventDraft = {
   location_name: string;
   address: string;
   website: string;
+  price: string;
+  age_range: string;
+  image_url: string;
   tags: string;
 };
 
