@@ -126,3 +126,63 @@ Use the `test-implementation` skill for browser-based E2E testing:
 ### Server Hosting
 
 * Supabase Edge Function
+
+### Supabase CLI
+
+Use the Supabase CLI to interact with the database and edge functions:
+
+#### Database Operations
+```bash
+# Execute SQL queries
+npx supabase db execute --sql "SELECT * FROM events LIMIT 5"
+
+# List tables
+npx supabase db execute --sql "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+
+# Run migrations
+npx supabase db push
+
+# Generate TypeScript types from schema
+npx supabase gen types typescript --local > frontend/src/types/database.ts
+```
+
+#### Migrations
+```bash
+# List migrations
+npx supabase migration list
+
+# Create a new migration
+npx supabase migration new <migration_name>
+
+# Apply pending migrations
+npx supabase db push
+```
+
+#### Edge Functions
+```bash
+# Serve functions locally
+npx supabase functions serve
+
+# Deploy a function
+npx supabase functions deploy <function_name>
+
+# View function logs
+npx supabase functions logs <function_name>
+```
+
+#### Logs & Debugging
+```bash
+# View database logs
+npx supabase db logs
+
+# View auth logs
+npx supabase auth logs
+
+# Check project status
+npx supabase status
+```
+
+#### Configuration
+* Local config: `supabase/config.toml`
+* Requires `SUPABASE_ACCESS_TOKEN` env var for remote operations
+* Use `npx supabase link` to connect to a remote project
