@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 
+import { ApprovedEventsTab } from "@/components/admin/ApprovedEventsTab";
 import { CrawlJobsTab } from "@/components/admin/CrawlJobsTab";
 import { EventDetailDialog } from "@/components/EventDetailDialog";
 import { PendingItemsTab } from "@/components/admin/PendingItemsTab";
@@ -271,6 +272,7 @@ function PlacesPage({ places }: PlacesPageProps) {
 }
 
 type AdminPageProps = {
+  approvedEvents: Event[];
   allCrawlJobs: CrawlJob[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
@@ -294,6 +296,7 @@ type AdminPageProps = {
 };
 
 function AdminPage({
+  approvedEvents,
   allCrawlJobs,
   pendingEvents,
   pendingPlaces,
@@ -395,6 +398,10 @@ function AdminPage({
               <ClipboardList className="h-4 w-4" />
               Pending Review ({pendingEvents.length + pendingPlaces.length})
             </TabsTrigger>
+            <TabsTrigger value="approved-events" className="gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Approved Events ({approvedEvents.length})
+            </TabsTrigger>
             <TabsTrigger value="jobs" className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Crawl Jobs ({allCrawlJobs.length})
@@ -419,6 +426,24 @@ function AdminPage({
                   onApprovePlace={onApprovePlace}
                   onDeleteEvent={onDeleteEvent}
                   onDeletePlace={onDeletePlace}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="approved-events">
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit Approved Events</CardTitle>
+                <CardDescription>
+                  Quickly update published event details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ApprovedEventsTab
+                  events={approvedEvents}
+                  onSaveEvent={onSaveEvent}
+                  onDeleteEvent={onDeleteEvent}
                 />
               </CardContent>
             </Card>
@@ -579,6 +604,7 @@ function ExplorePlacesRedirect() {
 
 function AdminRoute() {
   const {
+    events,
     allCrawlJobs,
     pendingEvents,
     pendingPlaces,
@@ -608,6 +634,7 @@ function AdminRoute() {
 
   return session ? (
     <AdminPage
+      approvedEvents={events}
       allCrawlJobs={allCrawlJobs}
       pendingEvents={pendingEvents}
       pendingPlaces={pendingPlaces}
@@ -835,13 +862,19 @@ function RootLayout() {
         location_name: draft.location_name,
         address: draft.address,
         website: draft.website,
+        price: draft.price,
+        age_range: draft.age_range,
+        image_url: draft.image_url,
         tags: draft.tags
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
       })
       .eq("id", id);
-    await queryClient.invalidateQueries({ queryKey: ["events", "pending"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["events", "public"] }),
+    ]);
   };
 
   const savePlace = async (id: string, draft: PlaceDraft) => {
@@ -881,7 +914,10 @@ function RootLayout() {
 
   const deleteEvent = async (id: string) => {
     await supabase.from("events").delete().eq("id", id);
-    await queryClient.invalidateQueries({ queryKey: ["events", "pending"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+      queryClient.invalidateQueries({ queryKey: ["events", "public"] }),
+    ]);
   };
 
   const deletePlace = async (id: string) => {

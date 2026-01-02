@@ -10,9 +10,10 @@ import type { Event, EventDraft } from "@/types";
 type EventDetailViewProps = {
   event: Event;
   onSave: (id: string, draft: EventDraft) => void;
-  onApprove: (id: string) => void;
+  onApprove?: (id: string) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
+  showApproveAction?: boolean;
 };
 
 export function EventDetailView({
@@ -21,6 +22,7 @@ export function EventDetailView({
   onApprove,
   onDelete,
   onBack,
+  showApproveAction,
 }: EventDetailViewProps) {
   const form = useForm({
     defaultValues: {
@@ -42,6 +44,7 @@ export function EventDetailView({
   });
 
   const handleApprove = () => {
+    if (!onApprove) return;
     onApprove(event.id);
     onBack();
   };
@@ -66,10 +69,12 @@ export function EventDetailView({
               <Trash2 className="h-4 w-4" />
               Delete
             </Button>
-            <Button size="sm" onClick={handleApprove} className="gap-2">
-              <Check className="h-4 w-4" />
-              Approve
-            </Button>
+            {(showApproveAction ?? Boolean(onApprove)) && (
+              <Button size="sm" onClick={handleApprove} className="gap-2">
+                <Check className="h-4 w-4" />
+                Approve
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
