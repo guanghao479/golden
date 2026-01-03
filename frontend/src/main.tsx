@@ -6,7 +6,10 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./App";
 import "./index.css";
 
-const router = createRouter({ routeTree });
+const router = createRouter({
+  routeTree,
+  basepath: import.meta.env.BASE_URL,
+});
 const queryClient = new QueryClient();
 
 declare module "@tanstack/react-router" {
