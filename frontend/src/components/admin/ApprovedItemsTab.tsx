@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BadgeInfo } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ListingFilters, FilterParams, getDateRangeForPreset } from "@/components/ListingFilters";
@@ -8,13 +8,11 @@ import { AdminListItem } from "./AdminListItem";
 import { EventDetailView } from "./EventDetailView";
 import { PlaceDetailView } from "./PlaceDetailView";
 
-type PendingItemsTabProps = {
-  pendingEvents: Event[];
-  pendingPlaces: Place[];
+type ApprovedItemsTabProps = {
+  events: Event[];
+  places: Place[];
   onSaveEvent: (id: string, draft: EventDraft) => void;
   onSavePlace: (id: string, draft: PlaceDraft) => void;
-  onApproveEvent: (id: string) => void;
-  onApprovePlace: (id: string) => void;
   onDeleteEvent: (id: string) => void;
   onDeletePlace: (id: string) => void;
 };
@@ -105,22 +103,20 @@ function filterPlaces(places: Place[], params: FilterParams): Place[] {
   });
 }
 
-export function PendingItemsTab({
-  pendingEvents,
-  pendingPlaces,
+export function ApprovedItemsTab({
+  events,
+  places,
   onSaveEvent,
   onSavePlace,
-  onApproveEvent,
-  onApprovePlace,
   onDeleteEvent,
   onDeletePlace,
-}: PendingItemsTabProps) {
+}: ApprovedItemsTabProps) {
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
   const [itemType, setItemType] = useState<ItemType>("events");
   const [filterParams, setFilterParams] = useState<FilterParams>({ datePreset: "any" });
 
-  const eventTags = useMemo(() => extractTags(pendingEvents), [pendingEvents]);
-  const placeTags = useMemo(() => extractTags(pendingPlaces), [pendingPlaces]);
+  const eventTags = useMemo(() => extractTags(events), [events]);
+  const placeTags = useMemo(() => extractTags(places), [places]);
   const availableTags = itemType === "events" ? eventTags : placeTags;
 
   // Apply date preset if set
@@ -139,19 +135,29 @@ export function PendingItemsTab({
   }, [filterParams]);
 
   const filteredEvents = useMemo(
-    () => filterEvents(pendingEvents, effectiveParams),
-    [pendingEvents, effectiveParams]
+    () => filterEvents(events, effectiveParams),
+    [events, effectiveParams]
   );
 
   const filteredPlaces = useMemo(
-    () => filterPlaces(pendingPlaces, effectiveParams),
-    [pendingPlaces, effectiveParams]
+    () => filterPlaces(places, effectiveParams),
+    [places, effectiveParams]
   );
 
   const handleTypeChange = (type: "events" | "places") => {
     setItemType(type);
     // Reset filters when switching types
     setFilterParams({ datePreset: "any" });
+  };
+
+  const handleSaveEvent = (id: string, draft: EventDraft) => {
+    onSaveEvent(id, draft);
+    setSelectedItem(null);
+  };
+
+  const handleSavePlace = (id: string, draft: PlaceDraft) => {
+    onSavePlace(id, draft);
+    setSelectedItem(null);
   };
 
   if (selectedItem?.type === "event") {
@@ -167,10 +173,10 @@ export function PendingItemsTab({
         </Button>
         <EventDetailView
           event={selectedItem.item}
-          onSave={onSaveEvent}
-          onApprove={onApproveEvent}
+          onSave={handleSaveEvent}
           onDelete={onDeleteEvent}
           onBack={() => setSelectedItem(null)}
+          showApproveAction={false}
         />
       </div>
     );
@@ -189,11 +195,25 @@ export function PendingItemsTab({
         </Button>
         <PlaceDetailView
           place={selectedItem.item}
-          onSave={onSavePlace}
-          onApprove={onApprovePlace}
+          onSave={handleSavePlace}
           onDelete={onDeletePlace}
           onBack={() => setSelectedItem(null)}
+          showApproveAction={false}
         />
+      </div>
+    );
+  }
+
+  const totalItems = events.length + places.length;
+
+  if (totalItems === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+        <BadgeInfo className="h-5 w-5" />
+        <p>No approved items yet.</p>
+        <p className="text-sm">
+          Approved events and places will appear here for quick edits.
+        </p>
       </div>
     );
   }
@@ -207,17 +227,20 @@ export function PendingItemsTab({
         onParamsChange={setFilterParams}
         itemType={itemType}
         onItemTypeChange={handleTypeChange}
-        eventCount={pendingEvents.length}
-        placeCount={pendingPlaces.length}
+        eventCount={events.length}
+        placeCount={places.length}
       />
 
       {itemType === "events" ? (
         <>
-          {filteredEvents.length === 0 ? (
+          {events.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+              <BadgeInfo className="h-5 w-5" />
+              <p>No approved events yet.</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">
-              {pendingEvents.length === 0
-                ? "No pending events to review."
-                : "No events match your filters."}
+              No events match your filters.
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -232,8 +255,6 @@ export function PendingItemsTab({
                   tags={event.tags}
                   imageUrl={event.image_url}
                   category="events"
-                  showApprove
-                  onApprove={() => onApproveEvent(event.id)}
                   onDelete={() => onDeleteEvent(event.id)}
                   onClick={() => setSelectedItem({ type: "event", item: event })}
                 />
@@ -241,19 +262,22 @@ export function PendingItemsTab({
             </div>
           )}
 
-          {pendingEvents.length > 0 && (
+          {events.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              Showing {filteredEvents.length} of {pendingEvents.length} events
+              Showing {filteredEvents.length} of {events.length} events
             </p>
           )}
         </>
       ) : (
         <>
-          {filteredPlaces.length === 0 ? (
+          {places.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+              <BadgeInfo className="h-5 w-5" />
+              <p>No approved places yet.</p>
+            </div>
+          ) : filteredPlaces.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">
-              {pendingPlaces.length === 0
-                ? "No pending places to review."
-                : "No places match your filters."}
+              No places match your filters.
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -266,8 +290,6 @@ export function PendingItemsTab({
                   location={place.address}
                   tags={place.tags}
                   category="places"
-                  showApprove
-                  onApprove={() => onApprovePlace(place.id)}
                   onDelete={() => onDeletePlace(place.id)}
                   onClick={() => setSelectedItem({ type: "place", item: place })}
                 />
@@ -275,9 +297,9 @@ export function PendingItemsTab({
             </div>
           )}
 
-          {pendingPlaces.length > 0 && (
+          {places.length > 0 && (
             <p className="text-sm text-muted-foreground">
-              Showing {filteredPlaces.length} of {pendingPlaces.length} places
+              Showing {filteredPlaces.length} of {places.length} places
             </p>
           )}
         </>

@@ -10,9 +10,10 @@ import type { Place, PlaceDraft } from "@/types";
 type PlaceDetailViewProps = {
   place: Place;
   onSave: (id: string, draft: PlaceDraft) => void;
-  onApprove: (id: string) => void;
+  onApprove?: (id: string) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
+  showApproveAction?: boolean;
 };
 
 export function PlaceDetailView({
@@ -21,6 +22,7 @@ export function PlaceDetailView({
   onApprove,
   onDelete,
   onBack,
+  showApproveAction,
 }: PlaceDetailViewProps) {
   const form = useForm({
     defaultValues: {
@@ -38,7 +40,7 @@ export function PlaceDetailView({
   });
 
   const handleApprove = () => {
-    onApprove(place.id);
+    onApprove?.(place.id);
     onBack();
   };
 
@@ -62,10 +64,12 @@ export function PlaceDetailView({
               <Trash2 className="h-4 w-4" />
               Delete
             </Button>
-            <Button size="sm" onClick={handleApprove} className="gap-2">
-              <Check className="h-4 w-4" />
-              Approve
-            </Button>
+            {(showApproveAction ?? Boolean(onApprove)) && (
+              <Button size="sm" onClick={handleApprove} className="gap-2">
+                <Check className="h-4 w-4" />
+                Approve
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>

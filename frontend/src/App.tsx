@@ -22,12 +22,11 @@ import {
   CalendarDays,
   ClipboardList,
   MapPinned,
-  RefreshCw,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 
-import { ApprovedEventsTab } from "@/components/admin/ApprovedEventsTab";
-import { CrawlJobsTab } from "@/components/admin/CrawlJobsTab";
+import { ApprovedItemsTab } from "@/components/admin/ApprovedItemsTab";
+import { CrawlSourcesTab } from "@/components/admin/CrawlSourcesTab";
 import { EventDetailDialog } from "@/components/EventDetailDialog";
 import {
   ListingFilters,
@@ -51,7 +50,7 @@ import { supabase } from "@/lib/supabase";
 import { formatEventDatetime } from "@/lib/utils";
 import type {
   AppData,
-  CrawlJob,
+  CrawlSource,
   Event,
   EventDraft,
   Place,
@@ -491,20 +490,19 @@ function PlacesPage() {
 
 type AdminPageProps = {
   approvedEvents: Event[];
-  allCrawlJobs: CrawlJob[];
+  approvedPlaces: Place[];
+  crawlSources: CrawlSource[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
-  pendingCrawlJobs: CrawlJob[];
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
-  refreshMessage: string | null;
   isSubmitting: boolean;
-  isRefreshing: boolean;
   onCrawlUrlChange: (value: string) => void;
   onCrawlTypeChange: (value: "events" | "places") => void;
   onCrawlSubmit: () => void;
-  onRefreshJobs: () => void;
+  onRecrawl: (source: CrawlSource) => void;
+  onDeleteSource: (id: string) => void;
   onSaveEvent: (id: string, draft: EventDraft) => void;
   onSavePlace: (id: string, draft: PlaceDraft) => void;
   onApproveEvent: (id: string) => void;
@@ -515,20 +513,19 @@ type AdminPageProps = {
 
 function AdminPage({
   approvedEvents,
-  allCrawlJobs,
+  approvedPlaces,
+  crawlSources,
   pendingEvents,
   pendingPlaces,
-  pendingCrawlJobs,
   crawlUrl,
   crawlType,
   statusMessage,
-  refreshMessage,
   isSubmitting,
-  isRefreshing,
   onCrawlUrlChange,
   onCrawlTypeChange,
   onCrawlSubmit,
-  onRefreshJobs,
+  onRecrawl,
+  onDeleteSource,
   onSaveEvent,
   onSavePlace,
   onApproveEvent,
@@ -539,90 +536,19 @@ function AdminPage({
   return (
     <main className="px-6 pb-16">
       <section className="mx-auto max-w-6xl space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Submit a website to crawl</CardTitle>
-            <CardDescription>
-              Firecrawl will extract structured events or places for review.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end">
-              <div className="flex-1">
-                <label className="text-sm font-medium text-foreground">
-                  Website URL
-                </label>
-                <Input
-                  value={crawlUrl}
-                  onChange={(event) => onCrawlUrlChange(event.target.value)}
-                  placeholder="https://example.com/calendar"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Type</label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={crawlType === "events" ? "default" : "outline"}
-                    onClick={() => onCrawlTypeChange("events")}
-                  >
-                    Events
-                  </Button>
-                  <Button
-                    variant={crawlType === "places" ? "default" : "outline"}
-                    onClick={() => onCrawlTypeChange("places")}
-                  >
-                    Places
-                  </Button>
-                </div>
-              </div>
-              <Button onClick={onCrawlSubmit} disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Start crawl"}
-              </Button>
-            </div>
-            {statusMessage && (
-              <p className="text-sm text-muted-foreground">{statusMessage}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {pendingCrawlJobs.length > 0 && (
-          <div className="flex items-center justify-between rounded-xl border border-muted bg-muted/40 px-4 py-3">
-            <span className="text-sm text-muted-foreground">
-              {pendingCrawlJobs.length} crawl
-              {pendingCrawlJobs.length === 1 ? "" : "s"} in progress...
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRefreshJobs}
-              disabled={isRefreshing}
-              className="gap-2"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              {isRefreshing ? "Refreshing..." : "Refresh Jobs"}
-            </Button>
-          </div>
-        )}
-
-        {refreshMessage && (
-          <p className="text-sm text-muted-foreground">{refreshMessage}</p>
-        )}
-
         <Tabs defaultValue="pending" className="space-y-4">
           <TabsList>
             <TabsTrigger value="pending" className="gap-2">
               <ClipboardList className="h-4 w-4" />
               Pending Review ({pendingEvents.length + pendingPlaces.length})
             </TabsTrigger>
-            <TabsTrigger value="approved-events" className="gap-2">
+            <TabsTrigger value="approved" className="gap-2">
               <CalendarDays className="h-4 w-4" />
-              Approved Events ({approvedEvents.length})
+              Approved ({approvedEvents.length + approvedPlaces.length})
             </TabsTrigger>
-            <TabsTrigger value="jobs" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Crawl Jobs ({allCrawlJobs.length})
+            <TabsTrigger value="sources" className="gap-2">
+              <MapPinned className="h-4 w-4" />
+              Crawl Sources ({crawlSources.length})
             </TabsTrigger>
           </TabsList>
 
@@ -649,49 +575,48 @@ function AdminPage({
             </Card>
           </TabsContent>
 
-          <TabsContent value="approved-events">
+          <TabsContent value="approved">
             <Card>
               <CardHeader>
-                <CardTitle>Edit Approved Events</CardTitle>
+                <CardTitle>Edit Approved Items</CardTitle>
                 <CardDescription>
-                  Quickly update published event details.
+                  Quickly update published events and places.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ApprovedEventsTab
+                <ApprovedItemsTab
                   events={approvedEvents}
+                  places={approvedPlaces}
                   onSaveEvent={onSaveEvent}
+                  onSavePlace={onSavePlace}
                   onDeleteEvent={onDeleteEvent}
+                  onDeletePlace={onDeletePlace}
                 />
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="jobs">
+          <TabsContent value="sources">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Crawl Jobs</CardTitle>
-                    <CardDescription>
-                      View all crawl jobs and their status.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={onRefreshJobs}
-                    disabled={isRefreshing}
-                    className="gap-2"
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-                    />
-                    {isRefreshing ? "Refreshing..." : "Refresh"}
-                  </Button>
-                </div>
+                <CardTitle>Crawl Sources</CardTitle>
+                <CardDescription>
+                  Add new sources and manage saved URLs for re-crawling.
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <CrawlJobsTab jobs={allCrawlJobs} />
+                <CrawlSourcesTab
+                  sources={crawlSources}
+                  crawlUrl={crawlUrl}
+                  crawlType={crawlType}
+                  statusMessage={statusMessage}
+                  isSubmitting={isSubmitting}
+                  onCrawlUrlChange={onCrawlUrlChange}
+                  onCrawlTypeChange={onCrawlTypeChange}
+                  onCrawlSubmit={onCrawlSubmit}
+                  onRecrawl={onRecrawl}
+                  onDelete={onDeleteSource}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -821,23 +746,22 @@ function ExplorePlacesRedirect() {
 function AdminRoute() {
   const {
     events,
-    allCrawlJobs,
+    places,
+    crawlSources,
     pendingEvents,
     pendingPlaces,
-    pendingCrawlJobs,
     crawlUrl,
     crawlType,
     statusMessage,
-    refreshMessage,
     isSubmitting,
-    isRefreshing,
     session,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
-    handleRefreshJobs,
+    handleRecrawl,
+    deleteSource,
     saveEvent,
     savePlace,
     approveEvent,
@@ -851,20 +775,19 @@ function AdminRoute() {
   return session ? (
     <AdminPage
       approvedEvents={events}
-      allCrawlJobs={allCrawlJobs}
+      approvedPlaces={places}
+      crawlSources={crawlSources}
       pendingEvents={pendingEvents}
       pendingPlaces={pendingPlaces}
-      pendingCrawlJobs={pendingCrawlJobs}
       crawlUrl={crawlUrl}
       crawlType={crawlType}
       statusMessage={statusMessage}
-      refreshMessage={refreshMessage}
       isSubmitting={isSubmitting}
-      isRefreshing={isRefreshing}
       onCrawlUrlChange={setCrawlUrl}
       onCrawlTypeChange={setCrawlType}
       onCrawlSubmit={handleCrawlSubmit}
-      onRefreshJobs={handleRefreshJobs}
+      onRecrawl={handleRecrawl}
+      onDeleteSource={deleteSource}
       onSaveEvent={saveEvent}
       onSavePlace={savePlace}
       onApproveEvent={approveEvent}
@@ -887,9 +810,7 @@ function RootLayout() {
   const [crawlUrl, setCrawlUrl] = useState("");
   const [crawlType, setCrawlType] = useState<"events" | "places">("events");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
@@ -953,29 +874,15 @@ function RootLayout() {
     },
   });
 
-  const allCrawlJobsQuery = useQuery({
-    queryKey: ["crawl_jobs", "all", session?.user.id, isAdminRoute],
+  const crawlSourcesQuery = useQuery({
+    queryKey: ["crawl_sources", session?.user.id, isAdminRoute],
     enabled: isAdminRoute && Boolean(session),
     queryFn: async () => {
       const { data } = await supabase
-        .from("crawl_jobs")
+        .from("crawl_sources")
         .select("*")
-        .order("created_at", { ascending: false });
-      return (data ?? []) as CrawlJob[];
-    },
-  });
-
-  const pendingCrawlJobsQuery = useQuery({
-    queryKey: ["crawl_jobs", "pending", session?.user.id, isAdminRoute],
-    enabled: isAdminRoute && Boolean(session),
-    refetchInterval: isAdminRoute && Boolean(session) ? 5000 : false,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("crawl_jobs")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      return (data ?? []) as CrawlJob[];
+        .order("last_crawled_at", { ascending: false, nullsFirst: false });
+      return (data ?? []) as CrawlSource[];
     },
   });
 
@@ -983,8 +890,7 @@ function RootLayout() {
   const places = placesQuery.data ?? [];
   const pendingEvents = pendingEventsQuery.data ?? [];
   const pendingPlaces = pendingPlacesQuery.data ?? [];
-  const allCrawlJobs = allCrawlJobsQuery.data ?? [];
-  const pendingCrawlJobs = pendingCrawlJobsQuery.data ?? [];
+  const crawlSources = crawlSourcesQuery.data ?? [];
 
   useEffect(() => {
     const setInitialSession = async () => {
@@ -1012,8 +918,7 @@ function RootLayout() {
 
     setIsSubmitting(true);
     setStatusMessage(null);
-    setRefreshMessage(null);
-    const { error } = await supabase.functions.invoke("api/crawl", {
+    const { data, error } = await supabase.functions.invoke("api/crawl", {
       method: "POST",
       body: { url: crawlUrl, type: crawlType },
     });
@@ -1021,50 +926,43 @@ function RootLayout() {
     if (error) {
       setStatusMessage(error.message ?? "Crawl failed. Check the API logs.");
     } else {
-      setStatusMessage(
-        "Crawl queued. Use refresh to check for completed jobs.",
-      );
+      const result = data as { insertedEvents?: number; insertedPlaces?: number };
+      const insertedCount = (result.insertedEvents ?? 0) + (result.insertedPlaces ?? 0);
+      setStatusMessage(`Crawl complete. ${insertedCount} item${insertedCount === 1 ? "" : "s"} added for review.`);
       setCrawlUrl("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
         queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
       ]);
     }
     setIsSubmitting(false);
   };
 
-  const handleRefreshJobs = async () => {
-    setIsRefreshing(true);
-    setRefreshMessage(null);
-    const { data, error } = await supabase.functions.invoke("api/refresh", {
+  const handleRecrawl = async (source: CrawlSource) => {
+    setStatusMessage(`Re-crawling ${source.source_url}...`);
+    const { data, error } = await supabase.functions.invoke("api/crawl", {
       method: "POST",
+      body: { url: source.source_url, type: source.source_type },
     });
 
     if (error) {
-      setRefreshMessage(error.message ?? "Failed to refresh crawl jobs.");
+      setStatusMessage(error.message ?? "Recrawl failed. Check the API logs.");
     } else {
-      const summary = data as {
-        completed?: number;
-        failed?: number;
-        pending?: number;
-        insertedEvents?: number;
-        insertedPlaces?: number;
-      };
-      const completedCount = summary.completed ?? 0;
-      const failedCount = summary.failed ?? 0;
-      const insertedCount =
-        (summary.insertedEvents ?? 0) + (summary.insertedPlaces ?? 0);
-      setRefreshMessage(
-        `${completedCount} job${completedCount === 1 ? "" : "s"} completed, ${failedCount} failed, ${insertedCount} new item${insertedCount === 1 ? "" : "s"} added.`,
-      );
+      const result = data as { insertedEvents?: number; insertedPlaces?: number };
+      const insertedCount = (result.insertedEvents ?? 0) + (result.insertedPlaces ?? 0);
+      setStatusMessage(`Recrawl complete. ${insertedCount} item${insertedCount === 1 ? "" : "s"} added for review.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
         queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
       ]);
     }
-    setIsRefreshing(false);
+  };
+
+  const deleteSource = async (id: string) => {
+    await supabase.from("crawl_sources").delete().eq("id", id);
+    await queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
   };
 
   const saveEvent = async (id: string, draft: EventDraft) => {
@@ -1163,21 +1061,19 @@ function RootLayout() {
     places,
     pendingEvents,
     pendingPlaces,
-    allCrawlJobs,
-    pendingCrawlJobs,
+    crawlSources,
     crawlUrl,
     crawlType,
     statusMessage,
-    refreshMessage,
     isSubmitting,
-    isRefreshing,
     session,
     authError,
     authLoading,
     setCrawlUrl,
     setCrawlType,
     handleCrawlSubmit,
-    handleRefreshJobs,
+    handleRecrawl,
+    deleteSource,
     saveEvent,
     savePlace,
     approveEvent,
