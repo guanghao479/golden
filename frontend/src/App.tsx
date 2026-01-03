@@ -199,7 +199,7 @@ function EventsPage() {
 
   // Convert URL params to FilterParams
   const filterParams: FilterParams = useMemo(() => {
-    const preset = searchParams.datePreset ?? "this-week";
+    const preset = searchParams.datePreset ?? "next-30-days";
     // If no explicit dates but we have a preset, calculate the range
     if (!searchParams.dateFrom && !searchParams.dateTo && preset !== "custom") {
       const range = getDateRangeForPreset(preset);
@@ -225,7 +225,7 @@ function EventsPage() {
     if (filterParams.dateFrom && filterParams.dateTo) {
       return { from: filterParams.dateFrom, to: filterParams.dateTo };
     }
-    const preset = filterParams.datePreset ?? "this-week";
+    const preset = filterParams.datePreset ?? "next-30-days";
     if (preset !== "custom") {
       const range = getDateRangeForPreset(preset);
       return range

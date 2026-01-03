@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  addDays,
   endOfDay,
-  endOfWeek,
   format,
   isSameDay,
   nextFriday,
   nextSunday,
   startOfDay,
-  startOfWeek,
 } from "date-fns";
 import { CalendarIcon, Search, X } from "lucide-react";
 
@@ -22,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type DatePreset = "today" | "this-week" | "this-weekend" | "custom";
+export type DatePreset = "today" | "this-weekend" | "next-7-days" | "next-30-days" | "custom";
 
 export type FilterParams = {
   dateFrom?: string;
@@ -46,14 +45,6 @@ export function getDateRangeForPreset(preset: DatePreset): DateRange | null {
         from: startOfDay(today),
         to: endOfDay(today),
       };
-    case "this-week": {
-      const weekStart = startOfWeek(today, { weekStartsOn: 0 });
-      const weekEnd = endOfWeek(today, { weekStartsOn: 0 });
-      return {
-        from: startOfDay(weekStart),
-        to: endOfDay(weekEnd),
-      };
-    }
     case "this-weekend": {
       const dayOfWeek = today.getDay();
       let friday: Date;
@@ -78,6 +69,16 @@ export function getDateRangeForPreset(preset: DatePreset): DateRange | null {
         to: endOfDay(sunday),
       };
     }
+    case "next-7-days":
+      return {
+        from: startOfDay(today),
+        to: endOfDay(addDays(today, 6)),
+      };
+    case "next-30-days":
+      return {
+        from: startOfDay(today),
+        to: endOfDay(addDays(today, 29)),
+      };
     case "custom":
       return null;
   }
@@ -87,10 +88,12 @@ function getPresetLabel(preset: DatePreset): string {
   switch (preset) {
     case "today":
       return "Today";
-    case "this-week":
-      return "This Week";
     case "this-weekend":
       return "This Weekend";
+    case "next-7-days":
+      return "This Week";
+    case "next-30-days":
+      return "This Month";
     case "custom":
       return "Custom";
   }
@@ -98,7 +101,7 @@ function getPresetLabel(preset: DatePreset): string {
 
 export function getDefaultFilterParams(): FilterParams {
   return {
-    datePreset: "this-week",
+    datePreset: "next-30-days",
   };
 }
 
@@ -120,7 +123,7 @@ export function ListingFilters({
 
   const dateFrom = params.dateFrom ? new Date(params.dateFrom) : undefined;
   const dateTo = params.dateTo ? new Date(params.dateTo) : undefined;
-  const datePreset = params.datePreset ?? "this-week";
+  const datePreset = params.datePreset ?? "next-30-days";
   const selectedTags = params.tags ?? [];
 
   const hasActiveFilters =
@@ -132,7 +135,7 @@ export function ListingFilters({
   const handleClearFilters = () => {
     setSearchInput("");
     onParamsChange({
-      datePreset: "this-week",
+      datePreset: "next-30-days",
     });
   };
 
@@ -197,7 +200,7 @@ export function ListingFilters({
   }, [dateFrom, dateTo, datePreset]);
 
   const hasNonDefaultFilters =
-    datePreset !== "this-week" ||
+    datePreset !== "next-30-days" ||
     params.search ||
     (params.tags && params.tags.length > 0);
 
@@ -224,7 +227,7 @@ export function ListingFilters({
                   <p className="mb-2 text-xs font-medium text-muted-foreground">
                     Quick select
                   </p>
-                  {(["today", "this-week", "this-weekend"] as DatePreset[]).map(
+                  {(["today", "this-weekend", "next-7-days", "next-30-days"] as DatePreset[]).map(
                     (preset) => (
                       <Button
                         key={preset}
