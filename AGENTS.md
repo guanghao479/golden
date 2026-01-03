@@ -86,7 +86,25 @@ Use the `test-implementation` skill for browser-based E2E testing:
 
 ### CI/CD
 
-* Github actions
+* Github Actions
+
+#### Frontend Deployment (GitHub Pages)
+Triggered on push to `main` when files in `frontend/` change.
+
+**Required GitHub Variables (Settings > Secrets and variables > Actions > Variables):**
+- `VITE_SUPABASE_URL` - Your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+
+**Setup:**
+1. Go to repository Settings > Pages
+2. Set Source to "GitHub Actions"
+
+#### Supabase Backend Deployment
+Triggered on push to `main` when files in `supabase/functions/` or `supabase/migrations/` change.
+
+**Required GitHub Secrets (Settings > Secrets and variables > Actions > Secrets):**
+- `SUPABASE_ACCESS_TOKEN` - Personal access token from https://supabase.com/dashboard/account/tokens
+- `SUPABASE_PROJECT_REF` - Project reference ID (found in project settings URL)
 
 ## Frontend
 
