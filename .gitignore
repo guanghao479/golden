@@ -24,6 +24,7 @@ dist/
 # IDE/Tool configs
 .kiro/
 .serena/
+.claude/settings.local.json
 
 # Misc
 .DS_Store
