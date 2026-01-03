@@ -13,7 +13,9 @@ import {
   Outlet,
   createRootRoute,
   createRoute,
+  useNavigate,
   useRouterState,
+  useSearch,
 } from "@tanstack/react-router";
 import {
   ArrowRight,
@@ -27,6 +29,12 @@ import type { Session } from "@supabase/supabase-js";
 import { ApprovedEventsTab } from "@/components/admin/ApprovedEventsTab";
 import { CrawlJobsTab } from "@/components/admin/CrawlJobsTab";
 import { EventDetailDialog } from "@/components/EventDetailDialog";
+import {
+  ListingFilters,
+  getDateRangeForPreset,
+  type DatePreset,
+  type FilterParams,
+} from "@/components/ListingFilters";
 import { PendingItemsTab } from "@/components/admin/PendingItemsTab";
 import { Button } from "@/components/ui/button";
 import {
@@ -176,12 +184,123 @@ function MarketingPage({ events, places }: MarketingPageProps) {
   );
 }
 
-type EventsPageProps = {
-  events: Event[];
+type EventsSearchParams = {
+  dateFrom?: string;
+  dateTo?: string;
+  datePreset?: DatePreset;
+  search?: string;
+  tags?: string;
 };
 
-function EventsPage({ events }: EventsPageProps) {
+function EventsPage() {
+  const searchParams = useSearch({ from: "/events" }) as EventsSearchParams;
+  const navigate = useNavigate({ from: "/events" });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+
+  // Convert URL params to FilterParams
+  const filterParams: FilterParams = useMemo(() => {
+    const preset = searchParams.datePreset ?? "this-week";
+    // If no explicit dates but we have a preset, calculate the range
+    if (!searchParams.dateFrom && !searchParams.dateTo && preset !== "custom") {
+      const range = getDateRangeForPreset(preset);
+      return {
+        dateFrom: range?.from.toISOString(),
+        dateTo: range?.to.toISOString(),
+        datePreset: preset,
+        search: searchParams.search,
+        tags: searchParams.tags ? searchParams.tags.split(",") : undefined,
+      };
+    }
+    return {
+      dateFrom: searchParams.dateFrom,
+      dateTo: searchParams.dateTo,
+      datePreset: preset,
+      search: searchParams.search,
+      tags: searchParams.tags ? searchParams.tags.split(",") : undefined,
+    };
+  }, [searchParams]);
+
+  // Get effective date range for query
+  const effectiveDateRange = useMemo(() => {
+    if (filterParams.dateFrom && filterParams.dateTo) {
+      return { from: filterParams.dateFrom, to: filterParams.dateTo };
+    }
+    const preset = filterParams.datePreset ?? "this-week";
+    if (preset !== "custom") {
+      const range = getDateRangeForPreset(preset);
+      return range
+        ? { from: range.from.toISOString(), to: range.to.toISOString() }
+        : null;
+    }
+    return null;
+  }, [filterParams]);
+
+  // Server-side filtered query
+  const eventsQuery = useQuery({
+    queryKey: ["events", "filtered", filterParams],
+    queryFn: async () => {
+      let query = supabase
+        .from("events")
+        .select("*")
+        .eq("approved", true);
+
+      // Date filter - events that overlap with the range
+      if (effectiveDateRange) {
+        // Event ends after range start AND event starts before range end
+        query = query
+          .gte("end_time", effectiveDateRange.from)
+          .lte("start_time", effectiveDateRange.to);
+      }
+
+      // Search filter using ilike for case-insensitive search
+      if (filterParams.search) {
+        query = query.or(
+          `title.ilike.%${filterParams.search}%,description.ilike.%${filterParams.search}%`
+        );
+      }
+
+      // Tag filter - events containing all selected tags
+      if (filterParams.tags && filterParams.tags.length > 0) {
+        query = query.contains("tags", filterParams.tags);
+      }
+
+      query = query.order("start_time", { ascending: true });
+
+      const { data } = await query;
+      return (data ?? []) as Event[];
+    },
+  });
+
+  // Query for available tags
+  const tagsQuery = useQuery({
+    queryKey: ["events", "tags"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("events")
+        .select("tags")
+        .eq("approved", true);
+      const tagSet = new Set<string>();
+      (data ?? []).forEach((event: { tags: string[] }) => {
+        event.tags?.forEach((tag: string) => tagSet.add(tag));
+      });
+      return Array.from(tagSet);
+    },
+  });
+
+  const events = eventsQuery.data ?? [];
+  const availableTags = tagsQuery.data ?? [];
+
+  const handleParamsChange = (newParams: FilterParams) => {
+    navigate({
+      search: {
+        dateFrom: newParams.dateFrom,
+        dateTo: newParams.dateTo,
+        datePreset: newParams.datePreset,
+        search: newParams.search,
+        tags: newParams.tags?.join(",") || undefined,
+      },
+    });
+  };
 
   return (
     <main className="px-6 pb-16">
@@ -193,12 +312,27 @@ function EventsPage({ events }: EventsPageProps) {
           </p>
         </div>
 
-        {events.length === 0 ? (
+        <div className="mb-6">
+          <ListingFilters
+            availableTags={availableTags}
+            showDateFilter={true}
+            params={filterParams}
+            onParamsChange={handleParamsChange}
+          />
+        </div>
+
+        {eventsQuery.isLoading ? (
           <Card className="text-center">
             <CardHeader>
-              <CardTitle>No events yet</CardTitle>
+              <CardTitle>Loading events...</CardTitle>
+            </CardHeader>
+          </Card>
+        ) : events.length === 0 ? (
+          <Card className="text-center">
+            <CardHeader>
+              <CardTitle>No events found</CardTitle>
               <CardDescription>
-                Check back soon for upcoming family events.
+                Try adjusting your filters to see more results.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -229,11 +363,79 @@ function EventsPage({ events }: EventsPageProps) {
   );
 }
 
-type PlacesPageProps = {
-  places: Place[];
+type PlacesSearchParams = {
+  search?: string;
+  tags?: string;
 };
 
-function PlacesPage({ places }: PlacesPageProps) {
+function PlacesPage() {
+  const searchParams = useSearch({ from: "/places" }) as PlacesSearchParams;
+  const navigate = useNavigate({ from: "/places" });
+
+  // Convert URL params to FilterParams
+  const filterParams: FilterParams = useMemo(() => {
+    return {
+      search: searchParams.search,
+      tags: searchParams.tags ? searchParams.tags.split(",") : undefined,
+    };
+  }, [searchParams]);
+
+  // Server-side filtered query
+  const placesQuery = useQuery({
+    queryKey: ["places", "filtered", filterParams],
+    queryFn: async () => {
+      let query = supabase
+        .from("places")
+        .select("*")
+        .eq("approved", true);
+
+      // Search filter using ilike for case-insensitive search
+      if (filterParams.search) {
+        query = query.or(
+          `name.ilike.%${filterParams.search}%,description.ilike.%${filterParams.search}%`
+        );
+      }
+
+      // Tag filter - places containing all selected tags
+      if (filterParams.tags && filterParams.tags.length > 0) {
+        query = query.contains("tags", filterParams.tags);
+      }
+
+      query = query.order("name", { ascending: true });
+
+      const { data } = await query;
+      return (data ?? []) as Place[];
+    },
+  });
+
+  // Query for available tags
+  const tagsQuery = useQuery({
+    queryKey: ["places", "tags"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("places")
+        .select("tags")
+        .eq("approved", true);
+      const tagSet = new Set<string>();
+      (data ?? []).forEach((place: { tags: string[] }) => {
+        place.tags?.forEach((tag: string) => tagSet.add(tag));
+      });
+      return Array.from(tagSet);
+    },
+  });
+
+  const places = placesQuery.data ?? [];
+  const availableTags = tagsQuery.data ?? [];
+
+  const handleParamsChange = (newParams: FilterParams) => {
+    navigate({
+      search: {
+        search: newParams.search,
+        tags: newParams.tags?.join(",") || undefined,
+      },
+    });
+  };
+
   return (
     <main className="px-6 pb-16">
       <section className="mx-auto max-w-6xl">
@@ -244,12 +446,27 @@ function PlacesPage({ places }: PlacesPageProps) {
           </p>
         </div>
 
-        {places.length === 0 ? (
+        <div className="mb-6">
+          <ListingFilters
+            availableTags={availableTags}
+            showDateFilter={false}
+            params={filterParams}
+            onParamsChange={handleParamsChange}
+          />
+        </div>
+
+        {placesQuery.isLoading ? (
           <Card className="text-center">
             <CardHeader>
-              <CardTitle>No places yet</CardTitle>
+              <CardTitle>Loading places...</CardTitle>
+            </CardHeader>
+          </Card>
+        ) : places.length === 0 ? (
+          <Card className="text-center">
+            <CardHeader>
+              <CardTitle>No places found</CardTitle>
               <CardDescription>
-                Check back soon for family-friendly places.
+                Try adjusting your filters to see more results.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -586,13 +803,11 @@ function MarketingRoute() {
 }
 
 function EventsRoute() {
-  const { events } = useAppData();
-  return <EventsPage events={events} />;
+  return <EventsPage />;
 }
 
 function PlacesRoute() {
-  const { places } = useAppData();
-  return <PlacesPage places={places} />;
+  return <PlacesPage />;
 }
 
 function ExploreEventsRedirect() {
