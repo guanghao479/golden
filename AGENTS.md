@@ -133,6 +133,41 @@ Triggered on push to `main` when files in `supabase/functions/` or `supabase/mig
 
 ## Backend
 
+### Local Development Setup
+
+Before developing the backend locally, install the following CLIs:
+
+#### Supabase CLI
+```bash
+# macOS
+brew install supabase/tap/supabase
+
+# npm (cross-platform)
+npm install -g supabase
+
+# Or use npx (no installation required)
+npx supabase --help
+```
+
+#### Deno CLI
+Required for running and testing Edge Functions locally.
+```bash
+# macOS
+brew install deno
+
+# Using curl (macOS/Linux)
+curl -fsSL https://deno.land/install.sh | sh
+
+# Windows (PowerShell)
+irm https://deno.land/install.ps1 | iex
+```
+
+After installation, verify both are working:
+```bash
+supabase --version   # or: npx supabase --version
+deno --version
+```
+
 ### Language
 
 * Typescript (locked by Supabase Edge Function)
