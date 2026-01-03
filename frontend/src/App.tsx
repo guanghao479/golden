@@ -21,7 +21,10 @@ import {
   ArrowRight,
   CalendarDays,
   ClipboardList,
+  LogOut,
   MapPinned,
+  Search,
+  Tag,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 
@@ -29,12 +32,19 @@ import { ApprovedItemsTab } from "@/components/admin/ApprovedItemsTab";
 import { CrawlSourcesTab } from "@/components/admin/CrawlSourcesTab";
 import { EventDetailDialog } from "@/components/EventDetailDialog";
 import {
-  ListingFilters,
   getDateRangeForPreset,
   type DatePreset,
   type FilterParams,
 } from "@/components/ListingFilters";
+import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { PendingItemsTab } from "@/components/admin/PendingItemsTab";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,6 +53,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ListingCard } from "@/components/ui/listing-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,7 +85,264 @@ const useAppData = () => {
   return context;
 };
 
-const navLinkInactive = "text-sm font-medium transition-colors text-muted-foreground hover:text-foreground";
+const navLinkBase = "text-sm font-medium transition-colors";
+const navLinkInactive = `${navLinkBase} text-muted-foreground hover:text-foreground`;
+const navLinkActive = `${navLinkBase} text-foreground`;
+
+type UserAvatarProps = {
+  email: string;
+  onSignOut: () => void;
+};
+
+function UserAvatar({ email, onSignOut }: UserAvatarProps) {
+  const initials = email
+    .split("@")[0]
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <Avatar className="h-9 w-9 cursor-pointer border border-muted hover:border-foreground/20 transition-colors">
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">Account</p>
+            <p className="text-xs leading-none text-muted-foreground">{email}</p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onSignOut} className="cursor-pointer text-destructive focus:text-destructive">
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+type HeaderFilterBarProps = {
+  showDateFilter: boolean;
+  availableTags: string[];
+};
+
+function HeaderFilterBar({ showDateFilter, availableTags }: HeaderFilterBarProps) {
+  const location = useRouterState({ select: (state) => state.location });
+  const navigate = useNavigate();
+  const searchParams = location.search as Record<string, string | undefined>;
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState(searchParams.search ?? "");
+
+  const datePreset = (searchParams.datePreset ?? "next-30-days") as DatePreset;
+  const tagsValue = searchParams.tags ?? "";
+  const selectedTags = tagsValue ? tagsValue.split(",") : [];
+  const hasActiveTags = selectedTags.length > 0;
+
+  const dateFrom = searchParams.dateFrom ? new Date(searchParams.dateFrom) : undefined;
+  const dateTo = searchParams.dateTo ? new Date(searchParams.dateTo) : undefined;
+
+  const getDateLabel = () => {
+    switch (datePreset) {
+      case "any": return "Any Date";
+      case "today": return "Today";
+      case "this-weekend": return "This Weekend";
+      case "next-7-days": return "This Week";
+      case "next-30-days": return "This Month";
+      case "custom": return "Custom";
+      default: return "This Month";
+    }
+  };
+
+  const handlePresetSelect = (preset: DatePreset) => {
+    const range = getDateRangeForPreset(preset);
+    navigate({
+      to: location.pathname,
+      search: {
+        ...searchParams,
+        dateFrom: range?.from.toISOString(),
+        dateTo: range?.to.toISOString(),
+        datePreset: preset,
+      },
+    });
+    if (preset !== "custom") {
+      setDatePopoverOpen(false);
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    navigate({
+      to: location.pathname,
+      search: {
+        ...searchParams,
+        search: searchInput || undefined,
+      },
+    });
+  };
+
+  const handleTagToggle = (tag: string) => {
+    const newTags = selectedTags.includes(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag];
+    navigate({
+      to: location.pathname,
+      search: {
+        ...searchParams,
+        tags: newTags.length > 0 ? newTags.join(",") : undefined,
+      },
+    });
+  };
+
+  const sortedTags = [...availableTags].sort((a, b) => a.localeCompare(b));
+
+  return (
+    <div className="inline-flex items-center rounded-full border border-muted/50 bg-white shadow-sm">
+      {showDateFilter && (
+        <>
+          <Popover open={datePopoverOpen} onOpenChange={setDatePopoverOpen}>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/50 rounded-l-full transition-colors">
+                <CalendarDays className="h-4 w-4" />
+                <span>{getDateLabel()}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <div className="flex">
+                <div className="flex flex-col gap-1 border-r p-3">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Quick select
+                  </p>
+                  {(["any", "today", "this-weekend", "next-7-days", "next-30-days"] as DatePreset[]).map(
+                    (preset) => (
+                      <Button
+                        key={preset}
+                        variant={datePreset === preset ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start"
+                        onClick={() => handlePresetSelect(preset)}
+                      >
+                        {preset === "any" ? "Any Date" :
+                         preset === "today" ? "Today" :
+                         preset === "this-weekend" ? "This Weekend" :
+                         preset === "next-7-days" ? "This Week" :
+                         "This Month"}
+                      </Button>
+                    )
+                  )}
+                  <Button
+                    variant={datePreset === "custom" ? "default" : "ghost"}
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => handlePresetSelect("custom")}
+                  >
+                    Custom Range
+                  </Button>
+                </div>
+                <div className="p-3">
+                  <Calendar
+                    mode="range"
+                    selected={
+                      dateFrom
+                        ? {
+                            from: dateFrom,
+                            to: dateTo,
+                          }
+                        : undefined
+                    }
+                    onSelect={(range) => {
+                      navigate({
+                        to: location.pathname,
+                        search: {
+                          ...searchParams,
+                          dateFrom: range?.from?.toISOString(),
+                          dateTo: range?.to?.toISOString(),
+                          datePreset: "custom",
+                        },
+                      });
+                    }}
+                    numberOfMonths={1}
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <div className="h-6 w-px bg-muted" />
+        </>
+      )}
+      <div className={`flex items-center gap-2 px-4 py-2 ${!showDateFilter ? 'rounded-l-full' : ''}`}>
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onBlur={handleSearchSubmit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSearchSubmit();
+            }
+          }}
+          className="w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
+      </div>
+      <div className="h-6 w-px bg-muted" />
+      <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+        <PopoverTrigger asChild>
+          <button className={`flex items-center gap-2 px-4 py-2 text-sm rounded-r-full transition-colors ${hasActiveTags ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+            <Tag className="h-4 w-4" />
+            <span>{hasActiveTags ? `${selectedTags.length} tags` : 'Tags'}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-3" align="center">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Filter by tags
+          </p>
+          {sortedTags.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 max-w-[280px]">
+              {sortedTags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant={selectedTags.includes(tag) ? "default" : "outline"}
+                  className="cursor-pointer text-xs"
+                  onClick={() => handleTagToggle(tag)}
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No tags available</p>
+          )}
+          {selectedTags.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 h-7 text-xs"
+              onClick={() => {
+                navigate({
+                  to: location.pathname,
+                  search: {
+                    ...searchParams,
+                    tags: undefined,
+                  },
+                });
+              }}
+            >
+              Clear tags
+            </Button>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 type MarketingPageProps = {
   events: Event[];
@@ -80,9 +355,10 @@ function MarketingPage({ events, places }: MarketingPageProps) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   return (
-    <main className="px-6 pb-16">
-      <section className="mx-auto max-w-6xl">
-        <div className="mb-16 text-center">
+    <main>
+      {/* Hero Section */}
+      <div className="px-6 py-12">
+        <section className="mx-auto max-w-6xl text-center">
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             Find family-friendly adventures
           </h1>
@@ -103,7 +379,12 @@ function MarketingPage({ events, places }: MarketingPageProps) {
               </Link>
             </Button>
           </div>
-        </div>
+        </section>
+      </div>
+
+      {/* Content Section */}
+      <div className="px-6 pb-8">
+      <section className="mx-auto max-w-6xl">
 
         {featuredEvents.length > 0 && (
           <section className="mb-12">
@@ -173,6 +454,7 @@ function MarketingPage({ events, places }: MarketingPageProps) {
           </Card>
         )}
       </section>
+      </div>
 
       <EventDetailDialog
         event={selectedEvent}
@@ -193,7 +475,6 @@ type EventsSearchParams = {
 
 function EventsPage() {
   const searchParams = useSearch({ from: "/events" }) as EventsSearchParams;
-  const navigate = useNavigate({ from: "/events" });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   // Convert URL params to FilterParams
@@ -270,56 +551,11 @@ function EventsPage() {
     },
   });
 
-  // Query for available tags
-  const tagsQuery = useQuery({
-    queryKey: ["events", "tags"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("events")
-        .select("tags")
-        .eq("approved", true);
-      const tagSet = new Set<string>();
-      (data ?? []).forEach((event: { tags: string[] }) => {
-        event.tags?.forEach((tag: string) => tagSet.add(tag));
-      });
-      return Array.from(tagSet);
-    },
-  });
-
   const events = eventsQuery.data ?? [];
-  const availableTags = tagsQuery.data ?? [];
-
-  const handleParamsChange = (newParams: FilterParams) => {
-    navigate({
-      search: {
-        dateFrom: newParams.dateFrom,
-        dateTo: newParams.dateTo,
-        datePreset: newParams.datePreset,
-        search: newParams.search,
-        tags: newParams.tags?.join(",") || undefined,
-      },
-    });
-  };
 
   return (
-    <main className="px-6 pb-16">
+    <main className="px-6 py-6">
       <section className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Events</h1>
-          <p className="mt-2 text-muted-foreground">
-            Family-friendly events happening soon
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <ListingFilters
-            availableTags={availableTags}
-            showDateFilter={true}
-            params={filterParams}
-            onParamsChange={handleParamsChange}
-          />
-        </div>
-
         {eventsQuery.isLoading ? (
           <Card className="text-center">
             <CardHeader>
@@ -369,7 +605,6 @@ type PlacesSearchParams = {
 
 function PlacesPage() {
   const searchParams = useSearch({ from: "/places" }) as PlacesSearchParams;
-  const navigate = useNavigate({ from: "/places" });
 
   // Convert URL params to FilterParams
   const filterParams: FilterParams = useMemo(() => {
@@ -407,53 +642,11 @@ function PlacesPage() {
     },
   });
 
-  // Query for available tags
-  const tagsQuery = useQuery({
-    queryKey: ["places", "tags"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("places")
-        .select("tags")
-        .eq("approved", true);
-      const tagSet = new Set<string>();
-      (data ?? []).forEach((place: { tags: string[] }) => {
-        place.tags?.forEach((tag: string) => tagSet.add(tag));
-      });
-      return Array.from(tagSet);
-    },
-  });
-
   const places = placesQuery.data ?? [];
-  const availableTags = tagsQuery.data ?? [];
-
-  const handleParamsChange = (newParams: FilterParams) => {
-    navigate({
-      search: {
-        search: newParams.search,
-        tags: newParams.tags?.join(",") || undefined,
-      },
-    });
-  };
 
   return (
-    <main className="px-6 pb-16">
+    <main className="px-6 py-6">
       <section className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Places</h1>
-          <p className="mt-2 text-muted-foreground">
-            Family-friendly destinations to explore
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <ListingFilters
-            availableTags={availableTags}
-            showDateFilter={false}
-            params={filterParams}
-            onParamsChange={handleParamsChange}
-          />
-        </div>
-
         {placesQuery.isLoading ? (
           <Card className="text-center">
             <CardHeader>
@@ -534,7 +727,7 @@ function AdminPage({
   onDeletePlace,
 }: AdminPageProps) {
   return (
-    <main className="px-6 pb-16">
+    <main className="px-6 py-6">
       <section className="mx-auto max-w-6xl space-y-8">
         <Tabs defaultValue="pending" className="space-y-4">
           <TabsList>
@@ -652,7 +845,7 @@ function AdminAuthPanel({
   });
 
   return (
-    <main className="px-6 pb-16">
+    <main className="px-6 py-6">
       <section className="mx-auto max-w-2xl">
         <Card>
           <CardHeader>
@@ -814,11 +1007,6 @@ function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-
-  const heroCopy = useMemo(
-    () => "Review crawled listings, edit details, and approve when ready.",
-    []
-  );
 
   const location = useRouterState({ select: (state) => state.location });
   const isAdminRoute = location.pathname.startsWith("/admin");
@@ -1084,58 +1272,134 @@ function RootLayout() {
     handleSignOut,
   };
 
+  const isEventsActive = location.pathname === "/events";
+  const isPlacesActive = location.pathname === "/places";
+  const isHomePage = location.pathname === "/";
+  const showHeaderSearch = !isAdminRoute && !isHomePage;
+
   return (
     <AppDataContext.Provider value={appData}>
-      <div className="min-h-screen bg-background">
-        <header className="px-6 py-6">
-          <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-primary">Golden</p>
-              <h1 className="text-xl font-semibold text-foreground">
-                Family Events & Places
-              </h1>
-            </div>
-            <nav className="flex flex-wrap gap-4">
-              <Link to="/" className={navLinkInactive}>
-                Home
+      <div className="min-h-screen bg-white">
+        <header className="bg-muted/30 border-b border-muted px-6 py-4">
+          <div className="mx-auto flex max-w-6xl items-center justify-between">
+            {/* Logo - Left */}
+            <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xl font-bold text-primary">Golden</span>
+            </Link>
+
+            {/* Navigation Tabs - Center (Airbnb style) */}
+            <nav className="hidden sm:flex items-center gap-1">
+              <Link
+                to="/events"
+                className={`relative px-4 py-3 text-sm font-medium transition-colors ${
+                  isEventsActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" />
+                  Events
+                </div>
+                {isEventsActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
+                )}
               </Link>
-              <Link to="/events" className={navLinkInactive}>
-                Events
-              </Link>
-              <Link to="/places" className={navLinkInactive}>
-                Places
-              </Link>
-              <Link to="/admin" className={navLinkInactive}>
-                Admin
+              <Link
+                to="/places"
+                className={`relative px-4 py-3 text-sm font-medium transition-colors ${
+                  isPlacesActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <MapPinned className="h-4 w-4" />
+                  Places
+                </div>
+                {isPlacesActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
+                )}
               </Link>
             </nav>
-          </div>
-        </header>
 
-        {isAdminRoute && (
-          <section className="px-6 pb-8">
-            <div className="mx-auto max-w-6xl rounded-2xl border border-muted bg-white px-6 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-primary">
-                    Admin workspace
-                  </p>
-                  <p className="text-lg font-medium text-foreground">{heroCopy}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {session
-                      ? `Signed in as ${session.user.email}`
-                      : "Sign in to manage crawled listings."}
-                  </p>
-                </div>
-                {session && (
-                  <Button variant="outline" onClick={handleSignOut}>
-                    Sign out
-                  </Button>
-                )}
+            {/* Right side - User Avatar or Admin link */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              {session ? (
+                <>
+                  <Link
+                    to="/admin"
+                    className={`hidden sm:flex items-center gap-1 text-sm font-medium transition-colors ${
+                      isAdminRoute
+                        ? "text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Admin
+                  </Link>
+                  <UserAvatar
+                    email={session.user.email ?? "user"}
+                    onSignOut={handleSignOut}
+                  />
+                </>
+              ) : (
+                <Link to="/admin" className={navLinkInactive}>
+                  Sign in
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Bar Row - Airbnb style (only on events/places pages) */}
+          {showHeaderSearch && (
+            <div className="mx-auto max-w-6xl mt-4">
+              <div className="flex justify-center">
+                <HeaderFilterBar
+                  showDateFilter={isEventsActive}
+                  availableTags={
+                    isEventsActive
+                      ? [...new Set(events.flatMap((e) => e.tags ?? []))]
+                      : [...new Set(places.flatMap((p) => p.tags ?? []))]
+                  }
+                />
               </div>
             </div>
-          </section>
-        )}
+          )}
+
+          {/* Mobile Navigation */}
+          <nav className="mt-3 flex sm:hidden items-center justify-center gap-4">
+            <Link
+              to="/events"
+              className={`flex items-center gap-1 text-sm font-medium ${
+                isEventsActive ? navLinkActive : navLinkInactive
+              }`}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Events
+            </Link>
+            <Link
+              to="/places"
+              className={`flex items-center gap-1 text-sm font-medium ${
+                isPlacesActive ? navLinkActive : navLinkInactive
+              }`}
+            >
+              <MapPinned className="h-4 w-4" />
+              Places
+            </Link>
+            {session && (
+              <Link
+                to="/admin"
+                className={`flex items-center gap-1 text-sm font-medium ${
+                  isAdminRoute ? navLinkActive : navLinkInactive
+                }`}
+              >
+                <ClipboardList className="h-4 w-4" />
+                Admin
+              </Link>
+            )}
+          </nav>
+        </header>
 
         <Outlet />
       </div>
