@@ -165,6 +165,38 @@ npx supabase gen types typescript --local > frontend/src/types/database.ts
 ```
 
 #### Migrations
+
+**IMPORTANT:** Always create migration files first, then apply them. Never apply SQL directly without a migration file.
+
+**Workflow:**
+1. Create a new migration file:
+   ```bash
+   npx supabase migration new <migration_name>
+   ```
+   This creates a timestamped file in `supabase/migrations/`
+
+2. Edit the migration file with your SQL changes
+
+3. Apply the migration locally:
+   ```bash
+   npx supabase db push
+   ```
+
+4. For remote deployment, migrations are applied via CI/CD when pushed to main
+
+**Example:**
+```bash
+# Create migration
+npx supabase migration new add_user_preferences
+
+# Edit supabase/migrations/20260103120000_add_user_preferences.sql
+# Add your SQL: CREATE TABLE user_preferences (...);
+
+# Apply locally
+npx supabase db push
+```
+
+**Commands:**
 ```bash
 # List migrations
 npx supabase migration list
@@ -174,7 +206,15 @@ npx supabase migration new <migration_name>
 
 # Apply pending migrations
 npx supabase db push
+
+# Reset local database (drops and recreates)
+npx supabase db reset
 ```
+
+**Do NOT:**
+- Use `mcp__supabase__apply_migration` without first creating the migration file
+- Apply SQL directly to the database without a corresponding migration file
+- Skip creating migration files for schema changes
 
 #### Edge Functions
 ```bash

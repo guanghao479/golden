@@ -23,9 +23,18 @@ type SupabaseInsertResult = {
   error: { message: string } | null;
 };
 
+type SupabaseUpsertResult = {
+  data?: unknown;
+  error: { message: string } | null;
+};
+
 type SupabaseClientLike = {
   from: (table: string) => {
     insert: (payload: unknown) => Promise<SupabaseInsertResult>;
+    upsert: (
+      payload: unknown,
+      options?: { onConflict?: string }
+    ) => Promise<SupabaseUpsertResult>;
   };
 };
 
@@ -255,11 +264,15 @@ export const createCrawlHandler = ({
       }
     }
 
-    // Record the crawl source
-    await supabase.from("crawl_sources").insert({
-      source_url: targetUrl,
-      source_type: crawlType,
-    });
+    // Record or update the crawl source with last_crawled_at
+    await supabase.from("crawl_sources").upsert(
+      {
+        source_url: targetUrl,
+        source_type: crawlType,
+        last_crawled_at: new Date().toISOString(),
+      },
+      { onConflict: "source_url,source_type" }
+    );
 
     console.log(`[api] 200 - Scraped ${insertedEvents} events, ${insertedPlaces} places`);
     return new Response(

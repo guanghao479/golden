@@ -56,15 +56,12 @@ export type PlaceDraft = {
   tags: string;
 };
 
-export type CrawlJob = {
+export type CrawlSource = {
   id: string;
-  firecrawl_job_id: string;
   source_url: string;
-  crawl_type: "events" | "places";
-  status: "pending" | "completed" | "failed";
-  error_message: string | null;
+  source_type: "events" | "places";
   created_at: string | null;
-  completed_at: string | null;
+  last_crawled_at: string | null;
 };
 
 export type AppData = {
@@ -72,21 +69,19 @@ export type AppData = {
   places: Place[];
   pendingEvents: Event[];
   pendingPlaces: Place[];
-  allCrawlJobs: CrawlJob[];
-  pendingCrawlJobs: CrawlJob[];
+  crawlSources: CrawlSource[];
   crawlUrl: string;
   crawlType: "events" | "places";
   statusMessage: string | null;
-  refreshMessage: string | null;
   isSubmitting: boolean;
-  isRefreshing: boolean;
   session: Session | null;
   authError: string | null;
   authLoading: boolean;
   setCrawlUrl: (value: string) => void;
   setCrawlType: (value: "events" | "places") => void;
   handleCrawlSubmit: () => void;
-  handleRefreshJobs: () => void;
+  handleRecrawl: (source: CrawlSource) => void;
+  deleteSource: (id: string) => void;
   saveEvent: (id: string, draft: EventDraft) => void;
   savePlace: (id: string, draft: PlaceDraft) => void;
   approveEvent: (id: string) => void;
