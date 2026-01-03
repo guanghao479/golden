@@ -3,14 +3,19 @@ import { createCrawlHandler } from "./handler.ts";
 
 const createSupabaseStub = () => {
   const inserts: Array<{ table: string; payload: unknown }> = [];
+  const upserts: Array<{ table: string; payload: unknown; options?: { onConflict?: string } }> = [];
   const from = (table: string) => ({
     insert: async (payload: unknown) => {
       inserts.push({ table, payload });
       return { error: null, data: null };
     },
+    upsert: async (payload: unknown, options?: { onConflict?: string }) => {
+      upserts.push({ table, payload, options });
+      return { error: null, data: null };
+    },
   });
 
-  return { client: { from }, inserts };
+  return { client: { from }, inserts, upserts };
 };
 
 Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
@@ -29,7 +34,7 @@ Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
 });
 
 Deno.test("createCrawlHandler scrapes and inserts events", async () => {
-  const { client, inserts } = createSupabaseStub();
+  const { client, inserts, upserts } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
@@ -74,13 +79,14 @@ Deno.test("createCrawlHandler scrapes and inserts events", async () => {
     insertedEvents: 1,
     insertedPlaces: 0,
   });
-  assertEquals(inserts.length, 2);
+  assertEquals(inserts.length, 1);
   assertEquals(inserts[0].table, "events");
-  assertEquals(inserts[1].table, "crawl_sources");
+  assertEquals(upserts.length, 1);
+  assertEquals(upserts[0].table, "crawl_sources");
 });
 
 Deno.test("createCrawlHandler scrapes and inserts places", async () => {
-  const { client, inserts } = createSupabaseStub();
+  const { client, inserts, upserts } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
@@ -121,9 +127,10 @@ Deno.test("createCrawlHandler scrapes and inserts places", async () => {
     insertedEvents: 0,
     insertedPlaces: 1,
   });
-  assertEquals(inserts.length, 2);
+  assertEquals(inserts.length, 1);
   assertEquals(inserts[0].table, "places");
-  assertEquals(inserts[1].table, "crawl_sources");
+  assertEquals(upserts.length, 1);
+  assertEquals(upserts[0].table, "crawl_sources");
 });
 
 Deno.test("createCrawlHandler handles firecrawl failure", async () => {
