@@ -28,6 +28,11 @@ type SupabaseUpsertResult = {
   error: { message: string } | null;
 };
 
+type SupabaseUpdateResult = {
+  data?: unknown;
+  error: { message: string } | null;
+};
+
 type SupabaseClientLike = {
   from: (table: string) => {
     insert: (payload: unknown) => Promise<SupabaseInsertResult>;
@@ -35,6 +40,11 @@ type SupabaseClientLike = {
       payload: unknown,
       options?: { onConflict?: string }
     ) => Promise<SupabaseUpsertResult>;
+    update: (payload: unknown) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => Promise<SupabaseUpdateResult>;
+      };
+    };
   };
 };
 
@@ -94,6 +104,26 @@ const schemas = {
     },
   },
 } satisfies Record<CrawlType, Record<string, unknown>>;
+
+type CrawlStatus = "idle" | "pending" | "crawling" | "completed" | "failed";
+
+const updateCrawlStatus = async (
+  supabase: SupabaseClientLike,
+  sourceUrl: string,
+  sourceType: CrawlType,
+  status: CrawlStatus,
+  errorMessage?: string
+) => {
+  await supabase
+    .from("crawl_sources")
+    .update({
+      crawl_status: status,
+      error_message: errorMessage ?? null,
+      ...(status === "completed" ? { last_crawled_at: new Date().toISOString() } : {}),
+    })
+    .eq("source_url", sourceUrl)
+    .eq("source_type", sourceType);
+};
 
 export const createCrawlHandler = ({
   supabase,
@@ -174,6 +204,7 @@ export const createCrawlHandler = ({
 
     if (!firecrawlApiKey) {
       console.log(`[api] 500 - Missing FIRECRAWL_API_KEY`);
+      await updateCrawlStatus(supabase, targetUrl, crawlType, "failed", "Missing FIRECRAWL_API_KEY");
       return new Response(
         JSON.stringify({ error: "Missing FIRECRAWL_API_KEY" }),
         {
@@ -182,6 +213,9 @@ export const createCrawlHandler = ({
         },
       );
     }
+
+    // Update status to 'crawling' before starting the actual crawl
+    await updateCrawlStatus(supabase, targetUrl, crawlType, "crawling");
 
     const firecrawlBody = {
       url: targetUrl,
@@ -207,6 +241,7 @@ export const createCrawlHandler = ({
       const errorBody = await firecrawlResponse.text();
       console.log(`[api] 502 - Firecrawl request failed: ${firecrawlResponse.status}`);
       console.log(`[api] Firecrawl error response: ${errorBody}`);
+      await updateCrawlStatus(supabase, targetUrl, crawlType, "failed", `Firecrawl request failed: ${firecrawlResponse.status}`);
       return new Response(
         JSON.stringify({ error: "Firecrawl request failed", details: errorBody }),
         {
@@ -221,6 +256,7 @@ export const createCrawlHandler = ({
     console.log(`[api] Firecrawl response: ${JSON.stringify(firecrawlPayload)}`);
 
     if (!firecrawlPayload.success) {
+      await updateCrawlStatus(supabase, targetUrl, crawlType, "failed", firecrawlPayload.error ?? "Firecrawl scrape failed");
       return new Response(
         JSON.stringify({ error: "Firecrawl scrape failed", details: firecrawlPayload.error }),
         {
@@ -241,6 +277,7 @@ export const createCrawlHandler = ({
           .from("events")
           .insert(events);
         if (insertError) {
+          await updateCrawlStatus(supabase, targetUrl, crawlType, "failed", insertError.message);
           return new Response(JSON.stringify({ error: insertError.message }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -255,6 +292,7 @@ export const createCrawlHandler = ({
           .from("places")
           .insert(places);
         if (insertError) {
+          await updateCrawlStatus(supabase, targetUrl, crawlType, "failed", insertError.message);
           return new Response(JSON.stringify({ error: insertError.message }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -264,15 +302,8 @@ export const createCrawlHandler = ({
       }
     }
 
-    // Record or update the crawl source with last_crawled_at
-    await supabase.from("crawl_sources").upsert(
-      {
-        source_url: targetUrl,
-        source_type: crawlType,
-        last_crawled_at: new Date().toISOString(),
-      },
-      { onConflict: "source_url,source_type" }
-    );
+    // Update status to 'completed' with last_crawled_at
+    await updateCrawlStatus(supabase, targetUrl, crawlType, "completed");
 
     console.log(`[api] 200 - Scraped ${insertedEvents} events, ${insertedPlaces} places`);
     return new Response(

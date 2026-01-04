@@ -141,7 +141,7 @@ function HeaderFilterBar({ showDateFilter, availableTags }: HeaderFilterBarProps
   const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(searchParams.search ?? "");
 
-  const datePreset = (searchParams.datePreset ?? "next-30-days") as DatePreset;
+  const datePreset = (searchParams.datePreset ?? "any") as DatePreset;
   const tagsValue = searchParams.tags ?? "";
   const selectedTags = tagsValue ? tagsValue.split(",") : [];
   const hasActiveTags = selectedTags.length > 0;
@@ -479,7 +479,7 @@ function EventsPage() {
 
   // Convert URL params to FilterParams
   const filterParams: FilterParams = useMemo(() => {
-    const preset = searchParams.datePreset ?? "next-30-days";
+    const preset = searchParams.datePreset ?? "any";
     // If no explicit dates but we have a preset, calculate the range
     if (!searchParams.dateFrom && !searchParams.dateTo && preset !== "custom") {
       const range = getDateRangeForPreset(preset);
@@ -505,7 +505,7 @@ function EventsPage() {
     if (filterParams.dateFrom && filterParams.dateTo) {
       return { from: filterParams.dateFrom, to: filterParams.dateTo };
     }
-    const preset = filterParams.datePreset ?? "next-30-days";
+    const preset = filterParams.datePreset ?? "any";
     if (preset !== "custom") {
       const range = getDateRangeForPreset(preset);
       return range
@@ -1080,6 +1080,22 @@ function RootLayout() {
   const pendingPlaces = pendingPlacesQuery.data ?? [];
   const crawlSources = crawlSourcesQuery.data ?? [];
 
+  // Check if any sources are actively crawling
+  const hasActiveCrawls = crawlSources.some(
+    (s) => s.crawl_status === "pending" || s.crawl_status === "crawling"
+  );
+
+  // Poll for updates when there are active crawls
+  useEffect(() => {
+    if (!hasActiveCrawls || !isAdminRoute || !session) return;
+
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [hasActiveCrawls, isAdminRoute, session, queryClient]);
+
   useEffect(() => {
     const setInitialSession = async () => {
       const { data } = await supabase.auth.getSession();
@@ -1106,46 +1122,76 @@ function RootLayout() {
 
     setIsSubmitting(true);
     setStatusMessage(null);
-    const { data, error } = await supabase.functions.invoke("api/crawl", {
-      method: "POST",
-      body: { url: crawlUrl, type: crawlType },
-    });
 
-    if (error) {
-      setStatusMessage(error.message ?? "Crawl failed. Check the API logs.");
-    } else {
-      const result = data as { insertedEvents?: number; insertedPlaces?: number };
-      const insertedCount = (result.insertedEvents ?? 0) + (result.insertedPlaces ?? 0);
-      setStatusMessage(`Crawl complete. ${insertedCount} item${insertedCount === 1 ? "" : "s"} added for review.`);
-      setCrawlUrl("");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
-      ]);
+    // Step 1: Immediately add the source with 'pending' status
+    const { error: upsertError } = await supabase.from("crawl_sources").upsert(
+      {
+        source_url: crawlUrl,
+        source_type: crawlType,
+        crawl_status: "pending",
+        error_message: null,
+      },
+      { onConflict: "source_url,source_type" }
+    );
+
+    if (upsertError) {
+      setStatusMessage(upsertError.message ?? "Failed to add source.");
+      setIsSubmitting(false);
+      return;
     }
+
+    // Immediately refresh the sources list to show the pending source
+    await queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
+    setStatusMessage("Source added. Crawl started in background...");
+    setCrawlUrl("");
     setIsSubmitting(false);
+
+    // Step 2: Trigger the crawl in the background (don't await)
+    supabase.functions
+      .invoke("api/crawl", {
+        method: "POST",
+        body: { url: crawlUrl, type: crawlType },
+      })
+      .then(async () => {
+        // Refresh data when crawl completes
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
+        ]);
+      })
+      .catch(() => {
+        // Error handling is done by the backend updating crawl_status
+        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
+      });
   };
 
   const handleRecrawl = async (source: CrawlSource) => {
-    setStatusMessage(`Re-crawling ${source.source_url}...`);
-    const { data, error } = await supabase.functions.invoke("api/crawl", {
-      method: "POST",
-      body: { url: source.source_url, type: source.source_type },
-    });
+    // Step 1: Immediately update status to 'pending'
+    await supabase
+      .from("crawl_sources")
+      .update({ crawl_status: "pending", error_message: null })
+      .eq("id", source.id);
 
-    if (error) {
-      setStatusMessage(error.message ?? "Recrawl failed. Check the API logs.");
-    } else {
-      const result = data as { insertedEvents?: number; insertedPlaces?: number };
-      const insertedCount = (result.insertedEvents ?? 0) + (result.insertedPlaces ?? 0);
-      setStatusMessage(`Recrawl complete. ${insertedCount} item${insertedCount === 1 ? "" : "s"} added for review.`);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
-        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
-      ]);
-    }
+    await queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
+    setStatusMessage(`Re-crawl started for ${source.source_url}...`);
+
+    // Step 2: Trigger the crawl in the background (don't await)
+    supabase.functions
+      .invoke("api/crawl", {
+        method: "POST",
+        body: { url: source.source_url, type: source.source_type },
+      })
+      .then(async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["events", "pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["places", "pending"] }),
+          queryClient.invalidateQueries({ queryKey: ["crawl_sources"] }),
+        ]);
+      })
+      .catch(() => {
+        queryClient.invalidateQueries({ queryKey: ["crawl_sources"] });
+      });
   };
 
   const deleteSource = async (id: string) => {

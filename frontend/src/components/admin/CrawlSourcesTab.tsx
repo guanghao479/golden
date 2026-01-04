@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { CrawlSource } from "@/types";
+import type { CrawlSource, CrawlStatus } from "@/types";
 
 type CrawlSourcesTabProps = {
   sources: CrawlSource[];
@@ -37,6 +37,49 @@ type CrawlSourcesTabProps = {
 function formatDate(dateString: string | null) {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleString();
+}
+
+function StatusBadge({ status, errorMessage }: { status: CrawlStatus; errorMessage: string | null }) {
+  switch (status) {
+    case "pending":
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Pending
+        </Badge>
+      );
+    case "crawling":
+      return (
+        <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Crawling
+        </Badge>
+      );
+    case "completed":
+      return (
+        <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800">
+          <CheckCircle2 className="h-3 w-3" />
+          Completed
+        </Badge>
+      );
+    case "failed":
+      return (
+        <Badge
+          variant="destructive"
+          className="gap-1 cursor-help"
+          title={errorMessage ?? "Crawl failed"}
+        >
+          <AlertCircle className="h-3 w-3" />
+          Failed
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline" className="gap-1">
+          Idle
+        </Badge>
+      );
+  }
 }
 
 export function CrawlSourcesTab({
@@ -130,7 +173,7 @@ export function CrawlSourcesTab({
             <TableRow>
               <TableHead>Source URL</TableHead>
               <TableHead className="w-[100px]">Type</TableHead>
-              <TableHead className="w-[180px]">Created</TableHead>
+              <TableHead className="w-[110px]">Status</TableHead>
               <TableHead className="w-[180px]">Last Crawled</TableHead>
               <TableHead className="w-[120px]">Actions</TableHead>
             </TableRow>
@@ -146,52 +189,57 @@ export function CrawlSourcesTab({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredSources.map((source) => (
-                <TableRow key={source.id}>
-                  <TableCell>
-                    <a
-                      href={source.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      {source.source_url.length > 50
-                        ? `${source.source_url.substring(0, 50)}...`
-                        : source.source_url}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{source.source_type}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(source.created_at)}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(source.last_crawled_at)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onRecrawl(source)}
-                        title="Re-crawl this source"
+              filteredSources.map((source) => {
+                const isCrawling = source.crawl_status === "pending" || source.crawl_status === "crawling";
+                return (
+                  <TableRow key={source.id}>
+                    <TableCell>
+                      <a
+                        href={source.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline"
                       >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onDelete(source.id)}
-                        title="Delete this source"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                        {source.source_url.length > 50
+                          ? `${source.source_url.substring(0, 50)}...`
+                          : source.source_url}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{source.source_type}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={source.crawl_status} errorMessage={source.error_message} />
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(source.last_crawled_at)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRecrawl(source)}
+                          disabled={isCrawling}
+                          title={isCrawling ? "Crawl in progress" : "Re-crawl this source"}
+                        >
+                          <RefreshCw className={`h-4 w-4 ${isCrawling ? "animate-spin" : ""}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onDelete(source.id)}
+                          disabled={isCrawling}
+                          title="Delete this source"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

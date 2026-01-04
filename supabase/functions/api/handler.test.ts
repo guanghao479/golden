@@ -4,6 +4,7 @@ import { createCrawlHandler } from "./handler.ts";
 const createSupabaseStub = () => {
   const inserts: Array<{ table: string; payload: unknown }> = [];
   const upserts: Array<{ table: string; payload: unknown; options?: { onConflict?: string } }> = [];
+  const updates: Array<{ table: string; payload: unknown; filters: Record<string, string> }> = [];
   const from = (table: string) => ({
     insert: async (payload: unknown) => {
       inserts.push({ table, payload });
@@ -13,9 +14,25 @@ const createSupabaseStub = () => {
       upserts.push({ table, payload, options });
       return { error: null, data: null };
     },
+    update: (payload: unknown) => {
+      const filters: Record<string, string> = {};
+      const chainedUpdate = {
+        eq: (column: string, value: string) => {
+          filters[column] = value;
+          return {
+            eq: async (column2: string, value2: string) => {
+              filters[column2] = value2;
+              updates.push({ table, payload, filters: { ...filters } });
+              return { error: null, data: null };
+            },
+          };
+        },
+      };
+      return chainedUpdate;
+    },
   });
 
-  return { client: { from }, inserts, upserts };
+  return { client: { from }, inserts, upserts, updates };
 };
 
 Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
@@ -34,7 +51,7 @@ Deno.test("createCrawlHandler rejects missing firecrawl API key", async () => {
 });
 
 Deno.test("createCrawlHandler scrapes and inserts events", async () => {
-  const { client, inserts, upserts } = createSupabaseStub();
+  const { client, inserts, updates } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
@@ -81,12 +98,14 @@ Deno.test("createCrawlHandler scrapes and inserts events", async () => {
   });
   assertEquals(inserts.length, 1);
   assertEquals(inserts[0].table, "events");
-  assertEquals(upserts.length, 1);
-  assertEquals(upserts[0].table, "crawl_sources");
+  // Status updates: 'crawling' then 'completed'
+  assertEquals(updates.length, 2);
+  assertEquals(updates[0].table, "crawl_sources");
+  assertEquals(updates[1].table, "crawl_sources");
 });
 
 Deno.test("createCrawlHandler scrapes and inserts places", async () => {
-  const { client, inserts, upserts } = createSupabaseStub();
+  const { client, inserts, updates } = createSupabaseStub();
   const handler = createCrawlHandler({
     supabase: client,
     firecrawlApiKey: "test-key",
@@ -129,8 +148,10 @@ Deno.test("createCrawlHandler scrapes and inserts places", async () => {
   });
   assertEquals(inserts.length, 1);
   assertEquals(inserts[0].table, "places");
-  assertEquals(upserts.length, 1);
-  assertEquals(upserts[0].table, "crawl_sources");
+  // Status updates: 'crawling' then 'completed'
+  assertEquals(updates.length, 2);
+  assertEquals(updates[0].table, "crawl_sources");
+  assertEquals(updates[1].table, "crawl_sources");
 });
 
 Deno.test("createCrawlHandler handles firecrawl failure", async () => {

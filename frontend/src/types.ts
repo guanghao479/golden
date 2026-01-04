@@ -56,12 +56,16 @@ export type PlaceDraft = {
   tags: string;
 };
 
+export type CrawlStatus = "idle" | "pending" | "crawling" | "completed" | "failed";
+
 export type CrawlSource = {
   id: string;
   source_url: string;
   source_type: "events" | "places";
   created_at: string | null;
   last_crawled_at: string | null;
+  crawl_status: CrawlStatus;
+  error_message: string | null;
 };
 
 export type AppData = {
