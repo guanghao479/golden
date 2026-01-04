@@ -265,6 +265,7 @@ export function PendingItemsTab({
                   subtitle={place.category}
                   location={place.address}
                   tags={place.tags}
+                  imageUrl={place.image_url}
                   category="places"
                   showApprove
                   onApprove={() => onApprovePlace(place.id)}

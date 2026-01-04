@@ -289,6 +289,7 @@ export function ApprovedItemsTab({
                   subtitle={place.category}
                   location={place.address}
                   tags={place.tags}
+                  imageUrl={place.image_url}
                   category="places"
                   onDelete={() => onDeletePlace(place.id)}
                   onClick={() => setSelectedItem({ type: "place", item: place })}
