@@ -1,10 +1,10 @@
 ---
-name: test-implementation
+name: test-e2e
 description: Test an implementation by running the local dev environment and performing E2E testing through the browser. Use when the user asks to test a feature, debug an issue, or verify a fix works correctly.
 allowed-tools: Bash, Read, Glob, Grep, mcp__chrome-devtools__*, mcp__supabase__*, TodoWrite, WebFetch
 ---
 
-# Test Implementation Skill
+# Test E2E Skill
 
 This skill guides testing of implementations in the Golden project by running the local dev environment and performing browser-based E2E testing.
 

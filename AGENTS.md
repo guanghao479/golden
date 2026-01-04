@@ -14,7 +14,7 @@ For every change, follow this workflow:
 - Run unit tests if applicable (`npm test`, `deno test`)
 
 ## 3. Test E2E Locally
-- Use `/test-implementation` skill for browser-based E2E testing
+- Use `/test-e2e` skill for browser-based E2E testing
 - Ensure `make dev` is running
 - Test all affected functionality in the browser
 - Verify database changes if applicable
@@ -85,8 +85,8 @@ For every change, follow this workflow:
 * Before committing: `cd frontend && npm test`
 * Backend: `cd supabase/functions/api && deno test --allow-env handler.test.ts`
 
-### E2E Testing with `/test-implementation`
-Use the `test-implementation` skill for browser-based E2E testing:
+### E2E Testing with `/test-e2e`
+Use the `test-e2e` skill for browser-based E2E testing:
 1. Store test credentials and URLs in `.test-fixtures/` (gitignored)
 2. Copy from `.test-fixtures.example/` and fill in your values
 3. Run `make dev` to start local environment
