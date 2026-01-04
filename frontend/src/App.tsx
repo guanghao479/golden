@@ -432,6 +432,7 @@ function MarketingPage({ events, places }: MarketingPageProps) {
                   subtitle={place.category || "Family-friendly spot"}
                   description={place.address || undefined}
                   category="places"
+                  imageUrl={place.image_url}
                 />
               ))}
             </div>
@@ -672,6 +673,7 @@ function PlacesPage() {
                 subtitle={place.category || "Family-friendly spot"}
                 description={place.address || undefined}
                 category="places"
+                imageUrl={place.image_url}
               />
             ))}
           </div>
@@ -1234,6 +1236,9 @@ function RootLayout() {
         category: draft.category,
         address: draft.address,
         website: draft.website,
+        price: draft.price,
+        age_range: draft.age_range,
+        image_url: draft.image_url,
         family_friendly: draft.family_friendly,
         tags: draft.tags
           .split(",")

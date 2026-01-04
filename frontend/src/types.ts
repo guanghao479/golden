@@ -26,6 +26,9 @@ export type Place = {
   category: string | null;
   address: string | null;
   website: string | null;
+  price: string | null;
+  age_range: string | null;
+  image_url: string | null;
   family_friendly: boolean;
   tags: string[];
   approved: boolean;
@@ -52,6 +55,9 @@ export type PlaceDraft = {
   category: string;
   address: string;
   website: string;
+  price: string;
+  age_range: string;
+  image_url: string;
   family_friendly: boolean;
   tags: string;
 };

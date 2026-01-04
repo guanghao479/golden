@@ -31,6 +31,9 @@ export function PlaceDetailView({
       category: place.category ?? "",
       address: place.address ?? "",
       website: place.website ?? "",
+      price: place.price ?? "",
+      age_range: place.age_range ?? "",
+      image_url: place.image_url ?? "",
       family_friendly: place.family_friendly ?? false,
       tags: place.tags?.join(", ") ?? "",
     },
@@ -146,6 +149,48 @@ export function PlaceDetailView({
                 <label className="text-sm font-medium">Website</label>
                 <form.Field
                   name="website"
+                  children={(field) => (
+                    <Input
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="https://..."
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Price</label>
+                <form.Field
+                  name="price"
+                  children={(field) => (
+                    <Input
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="e.g., Free, $10-20, $$"
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Age Range</label>
+                <form.Field
+                  name="age_range"
+                  children={(field) => (
+                    <Input
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="e.g., All ages, 3-12 years"
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Image URL</label>
+                <form.Field
+                  name="image_url"
                   children={(field) => (
                     <Input
                       value={field.state.value}

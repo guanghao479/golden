@@ -251,6 +251,19 @@ npx supabase db reset
 - Apply SQL directly to the database without a corresponding migration file
 - Skip creating migration files for schema changes
 
+#### Data Model Changes
+
+When updating data models (e.g., adding fields to `events` or `places`), update **all** locations:
+
+1. **Database**: Create a migration to add/modify columns
+2. **Frontend types**: Update `frontend/src/types.ts` (e.g., `Event`, `Place`, `EventDraft`, `PlaceDraft`)
+3. **Frontend components**: Update forms/views that use these types (e.g., `PlaceDetailView.tsx`)
+4. **Frontend data operations**: Update save/update functions in `App.tsx`
+5. **Backend API**: Update `supabase/functions/api/handler.ts`:
+   - Schema definitions (tells Firecrawl what to extract)
+   - Mapper functions (`mapEvents`, `mapPlaces`) that insert into database
+6. **ListingCard usage**: If adding `image_url`, update where cards are rendered
+
 #### Edge Functions
 ```bash
 # Serve functions locally

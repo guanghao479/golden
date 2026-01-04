@@ -98,6 +98,9 @@ const schemas = {
             website: { type: "string" },
             family_friendly: { type: "boolean" },
             tags: { type: "array", items: { type: "string" } },
+            price: { type: "string" },
+            age_range: { type: "string" },
+            image_url: { type: "string" },
           },
         },
       },
@@ -159,6 +162,9 @@ export const createCrawlHandler = ({
       website: String(place.website ?? ""),
       family_friendly: Boolean(place.family_friendly),
       tags: Array.isArray(place.tags) ? place.tags.map(String) : [],
+      price: place.price ? String(place.price) : null,
+      age_range: place.age_range ? String(place.age_range) : null,
+      image_url: place.image_url ? String(place.image_url) : null,
       approved: false,
     }));
 

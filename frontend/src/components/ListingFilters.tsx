@@ -106,7 +106,7 @@ function getPresetLabel(preset: DatePreset): string {
 
 export function getDefaultFilterParams(): FilterParams {
   return {
-    datePreset: "next-30-days",
+    datePreset: "any",
   };
 }
 
@@ -140,13 +140,13 @@ export function ListingFilters({
 
   const dateFrom = params.dateFrom ? new Date(params.dateFrom) : undefined;
   const dateTo = params.dateTo ? new Date(params.dateTo) : undefined;
-  const datePreset = params.datePreset ?? "next-30-days";
+  const datePreset = params.datePreset ?? "any";
   const selectedTags = params.tags ?? [];
 
   const handleClearFilters = () => {
     setSearchInput("");
     onParamsChange({
-      datePreset: "next-30-days",
+      datePreset: "any",
     });
   };
 
@@ -230,7 +230,7 @@ export function ListingFilters({
   }, [selectedTags]);
 
   const hasNonDefaultFilters =
-    (datePreset !== "next-30-days" && datePreset !== "any") ||
+    datePreset !== "any" ||
     params.search ||
     (params.tags && params.tags.length > 0);
 
