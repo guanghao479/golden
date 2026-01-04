@@ -1,3 +1,40 @@
+# Development Workflow
+
+For every change, follow this workflow:
+
+## 1. Plan
+- Generate a detailed implementation plan
+- List all files that need to be modified
+- Describe what changes will be made to each file
+- Present the plan to the user for approval
+
+## 2. Implement
+- After user approval, implement the changes
+- Follow the engineering principles below
+- Run unit tests if applicable (`npm test`, `deno test`)
+
+## 3. Test E2E Locally
+- Use `/test-implementation` skill for browser-based E2E testing
+- Ensure `make dev` is running
+- Test all affected functionality in the browser
+- Verify database changes if applicable
+
+## 4. Commit & Push
+- Ask user for confirmation before committing
+- Create a commit with a descriptive message following conventional commits
+- Push to the remote repository
+
+## 5. Monitor CI/CD
+- Watch GitHub Actions for the push
+- Wait for all workflows to complete successfully
+- If any workflow fails:
+  - Check the error logs
+  - Debug and fix the issue
+  - Commit and push the fix
+  - Repeat until CI passes
+
+---
+
 # Engineering Principles
 
 ## 1. Simplicity First
