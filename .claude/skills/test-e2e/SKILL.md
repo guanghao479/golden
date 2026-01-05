@@ -1,12 +1,21 @@
 ---
 name: test-e2e
-description: Test an implementation by running the local dev environment and performing E2E testing through the browser. Use when the user asks to test a feature, debug an issue, or verify a fix works correctly.
-allowed-tools: Bash, Read, Glob, Grep, mcp__chrome-devtools__*, mcp__supabase__*, TodoWrite, WebFetch
+description: Test an implementation by running the local dev environment and performing E2E testing through the browser. Use when the user asks to test a feature, debug an issue, or verify a fix works correctly. (project)
+allowed-tools: Bash, Read, Glob, Grep, mcp__chrome-devtools__*, mcp__supabase_local__*, TodoWrite, WebFetch
 ---
 
 # Test E2E Skill
 
-This skill guides testing of implementations in the Golden project by running the local dev environment and performing browser-based E2E testing.
+This skill guides testing of implementations in the Golden project by running the **LOCAL** dev environment and performing browser-based E2E testing.
+
+## CRITICAL: Local Testing Only
+
+**This skill is for LOCAL testing only. NEVER test against production.**
+
+- Use `mcp__supabase_local__*` tools - NOT `mcp__supabase_production__*`
+- Test at `http://localhost:5173` - NOT the production URL
+- Mutations to the database are safe because it's local
+- If you need to check production state, use `mcp__supabase_production__execute_sql` with SELECT queries only
 
 ## Prerequisites
 
@@ -72,7 +81,19 @@ When encountering errors:
 1. **Check browser console** for JavaScript errors
 2. **Check network requests** for failed API calls
 3. **Check backend logs** with `docker logs` or Supabase dashboard
-4. **Use Supabase MCP** to query database state directly
+4. **Use `mcp__supabase_local__execute_sql`** to query local database state directly
+
+**Database debugging examples:**
+```sql
+-- Check local table contents
+SELECT * FROM events LIMIT 5;
+
+-- Verify schema
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'events';
+
+-- Check for RLS issues
+SELECT * FROM crawl_sources WHERE created_by = auth.uid();
+```
 
 ### 5. Common Test Scenarios
 

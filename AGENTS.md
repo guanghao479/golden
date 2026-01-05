@@ -14,10 +14,11 @@ For every change, follow this workflow:
 - Run unit tests if applicable (`npm test`, `deno test`)
 
 ## 3. Test E2E Locally
-- Use `/test-e2e` skill for browser-based E2E testing
-- Ensure `make dev` is running
-- Test all affected functionality in the browser
-- Verify database changes if applicable
+- Use `/test-e2e` skill for browser-based E2E testing against LOCAL environment
+- Ensure `make dev` is running (starts local Supabase + frontend)
+- Test all affected functionality in the browser at `http://localhost:5173`
+- Verify database changes using `mcp__supabase_local__*` tools
+- **Do NOT test against production** - always use local dev environment
 
 ## 4. Commit & Push
 - Ask user for confirmation before committing
@@ -329,3 +330,60 @@ npx supabase status
 * Local config: `supabase/config.toml`
 * Requires `SUPABASE_ACCESS_TOKEN` env var for remote operations
 * Use `npx supabase link` to connect to a remote project
+
+### Supabase MCP Servers
+
+Two separate MCP servers are available for database operations:
+
+#### Local Development: `mcp__supabase_local__*`
+
+Use for all development and testing:
+```
+mcp__supabase_local__list_tables
+mcp__supabase_local__execute_sql
+mcp__supabase_local__apply_migration
+mcp__supabase_local__list_migrations
+mcp__supabase_local__get_logs
+```
+
+**Safe to use for:**
+- Running any SQL queries
+- Applying migrations
+- Testing schema changes
+- Inserting/updating/deleting test data
+
+#### Production: `mcp__supabase_production__*`
+
+Use for **READ-ONLY** operations only:
+```
+mcp__supabase_production__list_tables
+mcp__supabase_production__execute_sql      # SELECT only!
+mcp__supabase_production__list_migrations
+mcp__supabase_production__get_logs
+```
+
+**CRITICAL RULES:**
+- **NEVER** use `mcp__supabase_production__apply_migration` - migrations go through CI/CD
+- **NEVER** run INSERT/UPDATE/DELETE on production via MCP
+- **ONLY** use for reading data to debug issues or verify deployments
+- Production changes should ONLY happen via:
+  1. Migration files committed to git
+  2. CI/CD pipeline (GitHub Actions)
+
+**Safe production queries:**
+```sql
+-- OK: Reading data
+SELECT * FROM events WHERE approved = true LIMIT 10;
+SELECT column_name FROM information_schema.columns WHERE table_name = 'places';
+
+-- NOT OK: Mutating data
+INSERT INTO events (...) VALUES (...);  -- NEVER DO THIS
+UPDATE places SET approved = true;       -- NEVER DO THIS
+DELETE FROM crawl_sources;               -- NEVER DO THIS
+```
+
+**When to use production MCP:**
+- Debugging why production data looks wrong
+- Verifying a migration was applied correctly
+- Checking production schema matches expectations
+- Reading logs for troubleshooting
